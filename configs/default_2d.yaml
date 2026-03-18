@@ -1,0 +1,93 @@
+# DPC-GNN-Acoustic v2 — Default 2D Configuration
+# Target: k-Wave ground truth matching
+
+# ── Model ──
+model:
+  hidden_dim: 128
+  n_mp_layers: 12          # 12 message passing steps
+  encoder_depth: 3
+  decoder_depth: 3
+  n_heads: 4               # Multi-head attention in MP
+  use_dispersion_net: true
+  use_attenuation_net: true
+  use_pml_net: true
+  use_multi_scale_graph: true
+  residual_mp: true         # Residual connections in MP
+
+# ── Physics ──
+physics:
+  frequency: 5.0e6          # 5 MHz center frequency [Hz]
+  dt: 2.0e-8                # Time step [s] (50 ns)
+  n_time_steps: 200         # Total propagation steps
+  domain_size: [0.06, 0.06] # 6cm × 6cm domain [m]
+  pml_thickness: 10         # PML layers
+  cfl_safety: 0.3           # CFL safety factor
+
+# ── Graph ──
+graph:
+  k_local: 8                # Local k-NN neighbors
+  k_long_range: 4           # Long-range connections
+  long_range_radius: 0.02   # Long-range radius [m]
+  grid_resolution: 256      # Pixels per side (256×256)
+
+# ── Data ──
+data:
+  kwave_data_dir: "data/kwave_gt"
+  train_split: 0.8
+  val_split: 0.1
+  test_split: 0.1
+  num_workers: 4
+  batch_size: 4              # Graphs per batch
+  image_size: 512            # B-mode output resolution
+
+# ── Probe ──
+probe:
+  type: "linear"
+  n_elements: 128
+  pitch: 3.0e-4              # Element pitch [m]
+  frequency: 5.0e6
+  bandwidth: 0.6              # Fractional bandwidth
+
+# ── Loss ──
+loss:
+  lambda_l1: 1.0
+  lambda_ssim: 0.5
+  lambda_physics: 0.1
+  lambda_perceptual: 0.05
+  lambda_energy: 0.01
+
+# ── Training ──
+training:
+  max_epochs: 500
+  lr: 1.0e-4
+  weight_decay: 1.0e-6
+  warmup_epochs: 20
+  scheduler: "cosine"
+  grad_clip: 1.0
+  use_amp: true           # 混合精度训练 (推荐)
+  curriculum:
+    enabled: true
+    stages:
+      - {epochs: 100, medium: "homogeneous", loss_weight_physics: 0.5}
+      - {epochs: 200, medium: "layered", loss_weight_physics: 0.2}
+      - {epochs: 200, medium: "heterogeneous", loss_weight_physics: 0.1}
+
+# ── k-Wave GT Generation ──
+kwave:
+  binary_path: "kspaceFirstOrder-OMP"  # or CUDA version
+  pml_size: 20
+  smooth_p0: true
+  n_samples: 1000
+  phantoms:
+    - type: "homogeneous"
+    - type: "layered"
+    - type: "inclusion"
+    - type: "ct_derived"
+
+# ── Logging ──
+logging:
+  wandb_project: "dpc-gnn-acoustic-v2"
+  log_every_n_steps: 10
+  val_every_n_epochs: 5
+  save_top_k: 3
+  checkpoint_dir: "checkpoints"
