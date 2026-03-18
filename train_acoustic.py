@@ -147,7 +147,7 @@ def compute_physics_loss(model, nf, ei, ea, dt, c, p0):
     laplacian_0 = model.mps[0](h, ei, ea)
     
     # Initialize pressure history (Taylor expansion)
-    c_sq = (c.mean() ** 2)
+    c_sq = (c.float().mean() ** 2)
     p_prev = p0 - 0.5 * c_sq * (dt ** 2) * laplacian_0
     p_curr = p0.clone()
     
