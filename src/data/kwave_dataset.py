@@ -303,7 +303,8 @@ class KWaveDataset(Dataset):
         
         # Convert alpha from dB/cm to Np/m and apply frequency dependence
         alpha_np = alpha_0 * 11.51  # dB/cm → Np/m
-        freq_ratio = self.frequency / 1e6
+        freq = float(self.frequency) if not isinstance(self.frequency, (int, float)) else self.frequency
+        freq_ratio = freq / 1e6
         alpha_freq = alpha_np * (freq_ratio ** n_power)
         
         return {
