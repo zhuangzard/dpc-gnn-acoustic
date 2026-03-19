@@ -301,8 +301,9 @@ class DPCGNNAcousticV4(nn.Module):
         arg = (math.pi * f0 * (t - t0)) ** 2
         wavelet = (1.0 - 2.0 * arg) * torch.exp(-arg)
 
-        # Normalise
+        # Normalise to unit amplitude, then scale to physical pressure (~1 MPa)
         wavelet = wavelet / (wavelet.abs().max() + 1e-12)
+        wavelet = wavelet * 1e6  # Scale to ~1 MPa (typical ultrasound source pressure)
         return wavelet.unsqueeze(0).expand(batch_size, -1)  # [B, n_steps]
 
     def count_parameters(self) -> dict:
