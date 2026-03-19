@@ -20,7 +20,7 @@ import math
 import json
 import argparse
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -33,6 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from models.dpc_gnn_acoustic_v3 import DPCGNNAcousticV3, create_model_v3
 from data.kwave_dataset import KWaveDataset, create_dataloader
+from data.analytical_dataset import AnalyticalDataset, create_analytical_dataloader
 from losses.combined_loss_v2 import CombinedLossV2, create_loss_v2
 
 
@@ -50,9 +51,11 @@ class TrainerV3:
         config: dict,
         device: str = 'cuda',
         resume_from: Optional[str] = None,
+        dataset_type: str = 'kwave',
     ):
         self.config = config
         self.device = device
+        self.dataset_type = dataset_type
 
         train_cfg = config.get('training', {})
         self.max_epochs = train_cfg.get('max_epochs', 500)
@@ -96,21 +99,44 @@ class TrainerV3:
             print("🔥 Mixed precision training enabled (AMP)")
 
         # ── Data loaders ──
-        data_cfg = config.get('data', {})
-        data_dir = data_cfg.get('kwave_data_dir', 'data/kwave_gt')
+        if dataset_type == 'analytical':
+            print("📐 Using ANALYTICAL dataset (exact solutions as GT)")
+            grid_res = config.get('graph', {}).get('grid_resolution', 256)
+            n_elems = config.get('probe', {}).get('n_elements', 128)
+            physics_cfg = config.get('physics', {})
+            n_steps = int(physics_cfg.get('n_time_steps', 200))
+            dt_val = float(physics_cfg.get('dt', 2e-8))
 
-        self.train_loader = create_dataloader(
-            data_dir, split='train',
-            grid_resolution=config.get('graph', {}).get('grid_resolution', 256),
-            frequency=float(config.get('physics', {}).get('frequency', 5e6)),
-            n_elements=config.get('probe', {}).get('n_elements', 128),
-        )
-        self.val_loader = create_dataloader(
-            data_dir, split='val',
-            grid_resolution=config.get('graph', {}).get('grid_resolution', 256),
-            frequency=float(config.get('physics', {}).get('frequency', 5e6)),
-            n_elements=config.get('probe', {}).get('n_elements', 128),
-        )
+            self.train_loader = create_analytical_dataloader(
+                split='train',
+                grid_resolution=grid_res,
+                n_time_steps=n_steps,
+                dt=dt_val,
+                n_elements=n_elems,
+            )
+            self.val_loader = create_analytical_dataloader(
+                split='val',
+                grid_resolution=grid_res,
+                n_time_steps=n_steps,
+                dt=dt_val,
+                n_elements=n_elems,
+            )
+        else:
+            data_cfg = config.get('data', {})
+            data_dir = data_cfg.get('kwave_data_dir', 'data/kwave_gt')
+
+            self.train_loader = create_dataloader(
+                data_dir, split='train',
+                grid_resolution=config.get('graph', {}).get('grid_resolution', 256),
+                frequency=float(config.get('physics', {}).get('frequency', 5e6)),
+                n_elements=config.get('probe', {}).get('n_elements', 128),
+            )
+            self.val_loader = create_dataloader(
+                data_dir, split='val',
+                grid_resolution=config.get('graph', {}).get('grid_resolution', 256),
+                frequency=float(config.get('physics', {}).get('frequency', 5e6)),
+                n_elements=config.get('probe', {}).get('n_elements', 128),
+            )
 
         # ── Training state ──
         self.epoch = 0
@@ -216,11 +242,71 @@ class TrainerV3:
             print(f"    Pressure (final): max={p_last.max().item():.4e}, min={p_last.min().item():.4e}, rms={p_last.pow(2).mean().sqrt().item():.4e}")
         print()
 
+    def _compute_analytical_loss(
+        self,
+        outputs: Dict[str, torch.Tensor],
+        batch: Dict[str, torch.Tensor],
+        physics_loss: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Dict[str, float]]:
+        """Compute loss for analytical dataset: compare pressure fields directly.
+        
+        Loss = L1(pred_pressure, gt_pressure) 
+             + SSIM(pred_final_field, gt_final_field) 
+             + λ_phys * physics_loss
+        """
+        import torch.nn.functional as F
+
+        # ── Pressure history comparison ──
+        # Model outputs: all_pressures is list of (N,1) tensors, length T
+        pred_pressures = outputs['all_pressures']  # list of (N, 1) tensors
+        gt_pressures = batch['pressure_gt'].to(self.device)  # (T, N)
+        
+        T_pred = len(pred_pressures)
+        T_gt = gt_pressures.shape[0]
+        T = min(T_pred, T_gt)
+        
+        # Stack predicted pressures: (T, N)
+        pred_stack = torch.cat([p.squeeze(-1).unsqueeze(0) for p in pred_pressures[:T]], dim=0)
+        gt_stack = gt_pressures[:T]
+        
+        # Normalize both for fair comparison
+        pred_norm = pred_stack / (pred_stack.abs().max() + 1e-10)
+        gt_norm = gt_stack / (gt_stack.abs().max() + 1e-10)
+        
+        # L1 loss on full pressure history
+        l1_pressure = F.l1_loss(pred_norm, gt_norm)
+        
+        # ── Final field SSIM ──
+        # Reshape to 2D images for SSIM
+        nx = ny = self.config.get('graph', {}).get('grid_resolution', 256)
+        pred_final_2d = pred_norm[-1].view(nx, ny)
+        gt_final_2d = gt_norm[-1].view(nx, ny)
+        
+        # SSIM on final pressure field
+        ssim_val = self.criterion.ssim_loss(
+            pred_final_2d.unsqueeze(0).unsqueeze(0),
+            gt_final_2d.unsqueeze(0).unsqueeze(0),
+        )
+        
+        # Total loss
+        lambda_phys = self.criterion.lambda_physics
+        total_loss = l1_pressure + 0.5 * ssim_val + lambda_phys * physics_loss
+        
+        loss_dict = {
+            'l1': l1_pressure.item(),
+            'ssim': ssim_val.item(),
+            'physics': physics_loss.item() if isinstance(physics_loss, torch.Tensor) else physics_loss,
+            'total': total_loss.item(),
+        }
+        
+        return total_loss, loss_dict
+
     def _train_epoch(self) -> Dict[str, float]:
         """Train for one epoch."""
         self.model.train()
         epoch_losses = []
         epoch_metrics = {}
+        use_analytical = (self.dataset_type == 'analytical')
 
         for batch in self.train_loader:
             self.global_step += 1
@@ -249,10 +335,15 @@ class TrainerV3:
                     physics_loss = self.model.compute_physics_loss()
 
                 with autocast():
-                    total_loss, loss_dict = self.criterion(
-                        outputs['bmode'], bmode_gt,
-                        physics_loss=physics_loss.float(),
-                    )
+                    if use_analytical:
+                        total_loss, loss_dict = self._compute_analytical_loss(
+                            outputs, batch, physics_loss.float(),
+                        )
+                    else:
+                        total_loss, loss_dict = self.criterion(
+                            outputs['bmode'], bmode_gt,
+                            physics_loss=physics_loss.float(),
+                        )
 
                 self.scaler.scale(total_loss).backward()
                 if self.grad_clip > 0:
@@ -266,10 +357,15 @@ class TrainerV3:
                     transducer_idx, positions, domain_size,
                 )
                 physics_loss = self.model.compute_physics_loss()
-                total_loss, loss_dict = self.criterion(
-                    outputs['bmode'], bmode_gt,
-                    physics_loss=physics_loss,
-                )
+                if use_analytical:
+                    total_loss, loss_dict = self._compute_analytical_loss(
+                        outputs, batch, physics_loss,
+                    )
+                else:
+                    total_loss, loss_dict = self.criterion(
+                        outputs['bmode'], bmode_gt,
+                        physics_loss=physics_loss,
+                    )
                 total_loss.backward()
                 if self.grad_clip > 0:
                     nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
@@ -293,6 +389,7 @@ class TrainerV3:
         """Validate on validation set."""
         self.model.eval()
         val_losses = []
+        use_analytical = (self.dataset_type == 'analytical')
 
         for batch in self.val_loader:
             hu = batch['hu'].to(self.device)
@@ -308,7 +405,13 @@ class TrainerV3:
                 hu, edge_index, edge_attr, node_props,
                 transducer_idx, positions, domain_size,
             )
-            total_loss, loss_dict = self.criterion(outputs['bmode'], bmode_gt)
+            if use_analytical:
+                physics_loss = self.model.compute_physics_loss()
+                total_loss, loss_dict = self._compute_analytical_loss(
+                    outputs, batch, physics_loss,
+                )
+            else:
+                total_loss, loss_dict = self.criterion(outputs['bmode'], bmode_gt)
             val_losses.append(total_loss.item())
 
         result = {'val_loss': sum(val_losses) / max(len(val_losses), 1)}
@@ -384,6 +487,9 @@ def main():
     parser.add_argument('--resume', type=str, default=None)
     parser.add_argument('--epochs', type=int, default=None)
     parser.add_argument('--lr', type=float, default=None)
+    parser.add_argument('--dataset', type=str, default='kwave',
+                        choices=['kwave', 'analytical'],
+                        help='Dataset type: kwave (default) or analytical (exact solutions)')
     args = parser.parse_args()
 
     with open(args.config) as f:
@@ -403,9 +509,11 @@ def main():
     print(f"DPC-GNN-Acoustic v3 — Training")
     print(f"  Config: {args.config}")
     print(f"  Device: {device}")
+    print(f"  Dataset: {args.dataset}")
     print(f"{'='*60}\n")
 
-    trainer = TrainerV3(config, device=device, resume_from=args.resume)
+    trainer = TrainerV3(config, device=device, resume_from=args.resume,
+                        dataset_type=args.dataset)
     trainer.train()
 
 
