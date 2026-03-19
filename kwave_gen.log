@@ -1,0 +1,8 @@
+=== k-Wave GT Generation ===
+Grid: 256x256, dx=2.34e-04m
+Output: /root/dpc-gnn-acoustic-v2/data/kwave_gt
+Scenarios: homogeneous, layered, inclusion
+
+
+--- homogeneous (10 samples) ---
+  [0] Generating homogeneous...

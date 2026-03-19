@@ -1,0 +1,1217 @@
+
+============================================================
+Scenario A: 100 samples
+============================================================
+
+[A] 1/100 (global idx=0)
+  → data/kwave_gt/sample_0000  ct=(128, 128) bmode=(88, 877) rf=(88, 877) (668KB)
+  ✓ 1.8s
+
+[A] 2/100 (global idx=1)
+  → data/kwave_gt/sample_0001  ct=(128, 128) bmode=(88, 884) rf=(88, 884) (672KB)
+  ✓ 3.1s
+
+[A] 3/100 (global idx=2)
+  → data/kwave_gt/sample_0002  ct=(128, 128) bmode=(88, 819) rf=(88, 819) (628KB)
+  ✓ 2.4s
+
+[A] 4/100 (global idx=3)
+  → data/kwave_gt/sample_0003  ct=(128, 128) bmode=(88, 876) rf=(88, 876) (667KB)
+  ✓ 3.1s
+
+[A] 5/100 (global idx=4)
+  → data/kwave_gt/sample_0004  ct=(128, 128) bmode=(88, 822) rf=(88, 822) (630KB)
+  ✓ 1.3s
+
+[A] 6/100 (global idx=5)
+  → data/kwave_gt/sample_0005  ct=(128, 128) bmode=(88, 843) rf=(88, 843) (644KB)
+  ✓ 3.3s
+
+[A] 7/100 (global idx=6)
+  → data/kwave_gt/sample_0006  ct=(128, 128) bmode=(88, 866) rf=(88, 866) (660KB)
+  ✓ 3.5s
+
+[A] 8/100 (global idx=7)
+  → data/kwave_gt/sample_0007  ct=(128, 128) bmode=(88, 849) rf=(88, 849) (648KB)
+  ✓ 1.6s
+
+[A] 9/100 (global idx=8)
+  → data/kwave_gt/sample_0008  ct=(128, 128) bmode=(88, 858) rf=(88, 858) (655KB)
+  ✓ 1.3s
+
+[A] 10/100 (global idx=9)
+  → data/kwave_gt/sample_0009  ct=(128, 128) bmode=(88, 882) rf=(88, 882) (671KB)
+  ✓ 1.7s
+
+[A] 11/100 (global idx=10)
+  → data/kwave_gt/sample_0010  ct=(128, 128) bmode=(88, 876) rf=(88, 876) (667KB)
+  ✓ 1.8s
+
+[A] 12/100 (global idx=11)
+  → data/kwave_gt/sample_0011  ct=(128, 128) bmode=(88, 894) rf=(88, 894) (679KB)
+  ✓ 1.3s
+
+[A] 13/100 (global idx=12)
+  → data/kwave_gt/sample_0012  ct=(128, 128) bmode=(88, 878) rf=(88, 878) (668KB)
+  ✓ 1.6s
+
+[A] 14/100 (global idx=13)
+  → data/kwave_gt/sample_0013  ct=(128, 128) bmode=(88, 851) rf=(88, 851) (650KB)
+  ✓ 1.7s
+
+[A] 15/100 (global idx=14)
+  → data/kwave_gt/sample_0014  ct=(128, 128) bmode=(88, 824) rf=(88, 824) (631KB)
+  ✓ 1.7s
+
+[A] 16/100 (global idx=15)
+  → data/kwave_gt/sample_0015  ct=(128, 128) bmode=(88, 875) rf=(88, 875) (666KB)
+  ✓ 2.2s
+
+[A] 17/100 (global idx=16)
+  → data/kwave_gt/sample_0016  ct=(128, 128) bmode=(88, 839) rf=(88, 839) (642KB)
+  ✓ 1.5s
+
+[A] 18/100 (global idx=17)
+  → data/kwave_gt/sample_0017  ct=(128, 128) bmode=(88, 851) rf=(88, 851) (650KB)
+  ✓ 1.3s
+
+[A] 19/100 (global idx=18)
+  → data/kwave_gt/sample_0018  ct=(128, 128) bmode=(88, 822) rf=(88, 822) (630KB)
+  ✓ 1.5s
+
+[A] 20/100 (global idx=19)
+  → data/kwave_gt/sample_0019  ct=(128, 128) bmode=(88, 831) rf=(88, 831) (636KB)
+  ✓ 1.3s
+
+[A] 21/100 (global idx=20)
+  → data/kwave_gt/sample_0020  ct=(128, 128) bmode=(88, 848) rf=(88, 848) (648KB)
+  ✓ 1.8s
+
+[A] 22/100 (global idx=21)
+  → data/kwave_gt/sample_0021  ct=(128, 128) bmode=(88, 871) rf=(88, 871) (664KB)
+  ✓ 1.3s
+
+[A] 23/100 (global idx=22)
+  → data/kwave_gt/sample_0022  ct=(128, 128) bmode=(88, 882) rf=(88, 882) (671KB)
+  ✓ 1.7s
+
+[A] 24/100 (global idx=23)
+  → data/kwave_gt/sample_0023  ct=(128, 128) bmode=(88, 844) rf=(88, 844) (645KB)
+  ✓ 2.3s
+
+[A] 25/100 (global idx=24)
+  → data/kwave_gt/sample_0024  ct=(128, 128) bmode=(88, 869) rf=(88, 869) (662KB)
+  ✓ 1.8s
+
+[A] 26/100 (global idx=25)
+  → data/kwave_gt/sample_0025  ct=(128, 128) bmode=(88, 828) rf=(88, 828) (634KB)
+  ✓ 2.4s
+
+[A] 27/100 (global idx=26)
+  → data/kwave_gt/sample_0026  ct=(128, 128) bmode=(88, 878) rf=(88, 878) (668KB)
+  ✓ 2.1s
+
+[A] 28/100 (global idx=27)
+  → data/kwave_gt/sample_0027  ct=(128, 128) bmode=(88, 871) rf=(88, 871) (664KB)
+  ✓ 1.6s
+
+[A] 29/100 (global idx=28)
+  → data/kwave_gt/sample_0028  ct=(128, 128) bmode=(88, 850) rf=(88, 850) (649KB)
+  ✓ 1.8s
+
+[A] 30/100 (global idx=29)
+  → data/kwave_gt/sample_0029  ct=(128, 128) bmode=(88, 823) rf=(88, 823) (631KB)
+  ✓ 1.4s
+
+[A] 31/100 (global idx=30)
+  → data/kwave_gt/sample_0030  ct=(128, 128) bmode=(88, 868) rf=(88, 868) (661KB)
+  ✓ 1.5s
+
+[A] 32/100 (global idx=31)
+  → data/kwave_gt/sample_0031  ct=(128, 128) bmode=(88, 859) rf=(88, 859) (655KB)
+  ✓ 1.8s
+
+[A] 33/100 (global idx=32)
+  → data/kwave_gt/sample_0032  ct=(128, 128) bmode=(88, 865) rf=(88, 865) (659KB)
+  ✓ 1.6s
+
+[A] 34/100 (global idx=33)
+  → data/kwave_gt/sample_0033  ct=(128, 128) bmode=(88, 859) rf=(88, 859) (655KB)
+  ✓ 1.3s
+
+[A] 35/100 (global idx=34)
+  → data/kwave_gt/sample_0034  ct=(128, 128) bmode=(88, 814) rf=(88, 814) (624KB)
+  ✓ 1.5s
+
+[A] 36/100 (global idx=35)
+  → data/kwave_gt/sample_0035  ct=(128, 128) bmode=(88, 829) rf=(88, 829) (635KB)
+  ✓ 1.3s
+
+[A] 37/100 (global idx=36)
+  → data/kwave_gt/sample_0036  ct=(128, 128) bmode=(88, 884) rf=(88, 884) (672KB)
+  ✓ 1.4s
+
+[A] 38/100 (global idx=37)
+  → data/kwave_gt/sample_0037  ct=(128, 128) bmode=(88, 816) rf=(88, 816) (626KB)
+  ✓ 1.1s
+
+[A] 39/100 (global idx=38)
+  → data/kwave_gt/sample_0038  ct=(128, 128) bmode=(88, 836) rf=(88, 836) (639KB)
+  ✓ 1.6s
+
+[A] 40/100 (global idx=39)
+  → data/kwave_gt/sample_0039  ct=(128, 128) bmode=(88, 859) rf=(88, 859) (655KB)
+  ✓ 1.7s
+
+[A] 41/100 (global idx=40)
+  → data/kwave_gt/sample_0040  ct=(128, 128) bmode=(88, 868) rf=(88, 868) (661KB)
+  ✓ 1.9s
+
+[A] 42/100 (global idx=41)
+  → data/kwave_gt/sample_0041  ct=(128, 128) bmode=(88, 881) rf=(88, 881) (670KB)
+  ✓ 1.5s
+
+[A] 43/100 (global idx=42)
+  → data/kwave_gt/sample_0042  ct=(128, 128) bmode=(88, 813) rf=(88, 813) (624KB)
+  ✓ 1.3s
+
+[A] 44/100 (global idx=43)
+  → data/kwave_gt/sample_0043  ct=(128, 128) bmode=(88, 873) rf=(88, 873) (665KB)
+  ✓ 1.5s
+
+[A] 45/100 (global idx=44)
+  → data/kwave_gt/sample_0044  ct=(128, 128) bmode=(88, 825) rf=(88, 825) (632KB)
+  ✓ 1.8s
+
+[A] 46/100 (global idx=45)
+  → data/kwave_gt/sample_0045  ct=(128, 128) bmode=(88, 824) rf=(88, 824) (631KB)
+  ✓ 1.5s
+
+[A] 47/100 (global idx=46)
+  → data/kwave_gt/sample_0046  ct=(128, 128) bmode=(88, 849) rf=(88, 849) (648KB)
+  ✓ 1.3s
+
+[A] 48/100 (global idx=47)
+  → data/kwave_gt/sample_0047  ct=(128, 128) bmode=(88, 837) rf=(88, 837) (640KB)
+  ✓ 1.3s
+
+[A] 49/100 (global idx=48)
+  → data/kwave_gt/sample_0048  ct=(128, 128) bmode=(88, 842) rf=(88, 842) (644KB)
+  ✓ 1.5s
+
+[A] 50/100 (global idx=49)
+  → data/kwave_gt/sample_0049  ct=(128, 128) bmode=(88, 821) rf=(88, 821) (629KB)
+  ✓ 1.7s
+
+[A] 51/100 (global idx=50)
+  → data/kwave_gt/sample_0050  ct=(128, 128) bmode=(88, 889) rf=(88, 889) (676KB)
+  ✓ 1.7s
+
+[A] 52/100 (global idx=51)
+  → data/kwave_gt/sample_0051  ct=(128, 128) bmode=(88, 834) rf=(88, 834) (638KB)
+  ✓ 2.3s
+
+[A] 53/100 (global idx=52)
+  → data/kwave_gt/sample_0052  ct=(128, 128) bmode=(88, 878) rf=(88, 878) (668KB)
+  ✓ 1.3s
+
+[A] 54/100 (global idx=53)
+  → data/kwave_gt/sample_0053  ct=(128, 128) bmode=(88, 850) rf=(88, 850) (649KB)
+  ✓ 1.7s
+
+[A] 55/100 (global idx=54)
+  → data/kwave_gt/sample_0054  ct=(128, 128) bmode=(88, 819) rf=(88, 819) (628KB)
+  ✓ 1.7s
+
+[A] 56/100 (global idx=55)
+  → data/kwave_gt/sample_0055  ct=(128, 128) bmode=(88, 850) rf=(88, 850) (649KB)
+  ✓ 1.6s
+
+[A] 57/100 (global idx=56)
+  → data/kwave_gt/sample_0056  ct=(128, 128) bmode=(88, 837) rf=(88, 837) (640KB)
+  ✓ 1.2s
+
+[A] 58/100 (global idx=57)
+  → data/kwave_gt/sample_0057  ct=(128, 128) bmode=(88, 826) rf=(88, 826) (633KB)
+  ✓ 1.7s
+
+[A] 59/100 (global idx=58)
+  → data/kwave_gt/sample_0058  ct=(128, 128) bmode=(88, 876) rf=(88, 876) (667KB)
+  ✓ 1.7s
+
+[A] 60/100 (global idx=59)
+  → data/kwave_gt/sample_0059  ct=(128, 128) bmode=(88, 848) rf=(88, 848) (648KB)
+  ✓ 1.8s
+
+[A] 61/100 (global idx=60)
+  → data/kwave_gt/sample_0060  ct=(128, 128) bmode=(88, 861) rf=(88, 861) (657KB)
+  ✓ 3.1s
+
+[A] 62/100 (global idx=61)
+  → data/kwave_gt/sample_0061  ct=(128, 128) bmode=(88, 818) rf=(88, 818) (627KB)
+  ✓ 1.6s
+
+[A] 63/100 (global idx=62)
+  → data/kwave_gt/sample_0062  ct=(128, 128) bmode=(88, 815) rf=(88, 815) (625KB)
+  ✓ 1.3s
+
+[A] 64/100 (global idx=63)
+  → data/kwave_gt/sample_0063  ct=(128, 128) bmode=(88, 839) rf=(88, 839) (642KB)
+  ✓ 1.3s
+
+[A] 65/100 (global idx=64)
+  → data/kwave_gt/sample_0064  ct=(128, 128) bmode=(88, 820) rf=(88, 820) (628KB)
+  ✓ 1.4s
+
+[A] 66/100 (global idx=65)
+  → data/kwave_gt/sample_0065  ct=(128, 128) bmode=(88, 826) rf=(88, 826) (633KB)
+  ✓ 1.5s
+
+[A] 67/100 (global idx=66)
+  → data/kwave_gt/sample_0066  ct=(128, 128) bmode=(88, 861) rf=(88, 861) (657KB)
+  ✓ 1.6s
+
+[A] 68/100 (global idx=67)
+  → data/kwave_gt/sample_0067  ct=(128, 128) bmode=(88, 862) rf=(88, 862) (657KB)
+  ✓ 1.6s
+
+[A] 69/100 (global idx=68)
+  → data/kwave_gt/sample_0068  ct=(128, 128) bmode=(88, 893) rf=(88, 893) (679KB)
+  ✓ 1.6s
+
+[A] 70/100 (global idx=69)
+  → data/kwave_gt/sample_0069  ct=(128, 128) bmode=(88, 878) rf=(88, 878) (668KB)
+  ✓ 1.4s
+
+[A] 71/100 (global idx=70)
+  → data/kwave_gt/sample_0070  ct=(128, 128) bmode=(88, 853) rf=(88, 853) (651KB)
+  ✓ 1.5s
+
+[A] 72/100 (global idx=71)
+  → data/kwave_gt/sample_0071  ct=(128, 128) bmode=(88, 891) rf=(88, 891) (677KB)
+  ✓ 1.5s
+
+[A] 73/100 (global idx=72)
+  → data/kwave_gt/sample_0072  ct=(128, 128) bmode=(88, 852) rf=(88, 852) (650KB)
+  ✓ 1.3s
+
+[A] 74/100 (global idx=73)
+  → data/kwave_gt/sample_0073  ct=(128, 128) bmode=(88, 839) rf=(88, 839) (642KB)
+  ✓ 1.2s
+
+[A] 75/100 (global idx=74)
+  → data/kwave_gt/sample_0074  ct=(128, 128) bmode=(88, 849) rf=(88, 849) (648KB)
+  ✓ 1.4s
+
+[A] 76/100 (global idx=75)
+  → data/kwave_gt/sample_0075  ct=(128, 128) bmode=(88, 882) rf=(88, 882) (671KB)
+  ✓ 1.6s
+
+[A] 77/100 (global idx=76)
+  → data/kwave_gt/sample_0076  ct=(128, 128) bmode=(88, 823) rf=(88, 823) (631KB)
+  ✓ 1.7s
+
+[A] 78/100 (global idx=77)
+  → data/kwave_gt/sample_0077  ct=(128, 128) bmode=(88, 820) rf=(88, 820) (628KB)
+  ✓ 1.9s
+
+[A] 79/100 (global idx=78)
+  → data/kwave_gt/sample_0078  ct=(128, 128) bmode=(88, 835) rf=(88, 835) (639KB)
+  ✓ 1.6s
+
+[A] 80/100 (global idx=79)
+  → data/kwave_gt/sample_0079  ct=(128, 128) bmode=(88, 873) rf=(88, 873) (665KB)
+  ✓ 1.5s
+
+[A] 81/100 (global idx=80)
+  → data/kwave_gt/sample_0080  ct=(128, 128) bmode=(88, 820) rf=(88, 820) (628KB)
+  ✓ 1.3s
+
+[A] 82/100 (global idx=81)
+  → data/kwave_gt/sample_0081  ct=(128, 128) bmode=(88, 831) rf=(88, 831) (636KB)
+  ✓ 1.1s
+
+[A] 83/100 (global idx=82)
+  → data/kwave_gt/sample_0082  ct=(128, 128) bmode=(88, 859) rf=(88, 859) (655KB)
+  ✓ 1.3s
+
+[A] 84/100 (global idx=83)
+  → data/kwave_gt/sample_0083  ct=(128, 128) bmode=(88, 882) rf=(88, 882) (671KB)
+  ✓ 1.9s
+
+[A] 85/100 (global idx=84)
+  → data/kwave_gt/sample_0084  ct=(128, 128) bmode=(88, 838) rf=(88, 838) (641KB)
+  ✓ 1.3s
+
+[A] 86/100 (global idx=85)
+  → data/kwave_gt/sample_0085  ct=(128, 128) bmode=(88, 836) rf=(88, 836) (639KB)
+  ✓ 1.3s
+
+[A] 87/100 (global idx=86)
+  → data/kwave_gt/sample_0086  ct=(128, 128) bmode=(88, 833) rf=(88, 833) (637KB)
+  ✓ 1.6s
+
+[A] 88/100 (global idx=87)
+  → data/kwave_gt/sample_0087  ct=(128, 128) bmode=(88, 825) rf=(88, 825) (632KB)
+  ✓ 1.3s
+
+[A] 89/100 (global idx=88)
+  → data/kwave_gt/sample_0088  ct=(128, 128) bmode=(88, 848) rf=(88, 848) (648KB)
+  ✓ 1.5s
+
+[A] 90/100 (global idx=89)
+  → data/kwave_gt/sample_0089  ct=(128, 128) bmode=(88, 887) rf=(88, 887) (675KB)
+  ✓ 1.5s
+
+[A] 91/100 (global idx=90)
+  → data/kwave_gt/sample_0090  ct=(128, 128) bmode=(88, 887) rf=(88, 887) (675KB)
+  ✓ 1.2s
+
+[A] 92/100 (global idx=91)
+  → data/kwave_gt/sample_0091  ct=(128, 128) bmode=(88, 855) rf=(88, 855) (653KB)
+  ✓ 1.8s
+
+[A] 93/100 (global idx=92)
+  → data/kwave_gt/sample_0092  ct=(128, 128) bmode=(88, 877) rf=(88, 877) (668KB)
+  ✓ 1.4s
+
+[A] 94/100 (global idx=93)
+  → data/kwave_gt/sample_0093  ct=(128, 128) bmode=(88, 843) rf=(88, 843) (644KB)
+  ✓ 1.9s
+
+[A] 95/100 (global idx=94)
+  → data/kwave_gt/sample_0094  ct=(128, 128) bmode=(88, 875) rf=(88, 875) (666KB)
+  ✓ 1.8s
+
+[A] 96/100 (global idx=95)
+  → data/kwave_gt/sample_0095  ct=(128, 128) bmode=(88, 891) rf=(88, 891) (677KB)
+  ✓ 1.4s
+
+[A] 97/100 (global idx=96)
+  → data/kwave_gt/sample_0096  ct=(128, 128) bmode=(88, 822) rf=(88, 822) (630KB)
+  ✓ 1.7s
+
+[A] 98/100 (global idx=97)
+  → data/kwave_gt/sample_0097  ct=(128, 128) bmode=(88, 824) rf=(88, 824) (631KB)
+  ✓ 1.4s
+
+[A] 99/100 (global idx=98)
+  → data/kwave_gt/sample_0098  ct=(128, 128) bmode=(88, 862) rf=(88, 862) (657KB)
+  ✓ 1.4s
+
+[A] 100/100 (global idx=99)
+  → data/kwave_gt/sample_0099  ct=(128, 128) bmode=(88, 828) rf=(88, 828) (634KB)
+  ✓ 1.5s
+
+============================================================
+Scenario B: 100 samples
+============================================================
+
+[B] 1/100 (global idx=100)
+  → data/kwave_gt/sample_0100  ct=(128, 128) bmode=(88, 973) rf=(88, 973) (734KB)
+  ✓ 1.5s
+
+[B] 2/100 (global idx=101)
+  → data/kwave_gt/sample_0101  ct=(128, 128) bmode=(88, 943) rf=(88, 943) (713KB)
+  ✓ 1.8s
+
+[B] 3/100 (global idx=102)
+  → data/kwave_gt/sample_0102  ct=(128, 128) bmode=(88, 903) rf=(88, 903) (686KB)
+  ✓ 1.7s
+
+[B] 4/100 (global idx=103)
+  → data/kwave_gt/sample_0103  ct=(128, 128) bmode=(88, 913) rf=(88, 913) (692KB)
+  ✓ 1.9s
+
+[B] 5/100 (global idx=104)
+  → data/kwave_gt/sample_0104  ct=(128, 128) bmode=(88, 902) rf=(88, 902) (685KB)
+  ✓ 1.9s
+
+[B] 6/100 (global idx=105)
+  → data/kwave_gt/sample_0105  ct=(128, 128) bmode=(88, 901) rf=(88, 901) (684KB)
+  ✓ 1.6s
+
+[B] 7/100 (global idx=106)
+  → data/kwave_gt/sample_0106  ct=(128, 128) bmode=(88, 943) rf=(88, 943) (713KB)
+  ✓ 1.6s
+
+[B] 8/100 (global idx=107)
+  → data/kwave_gt/sample_0107  ct=(128, 128) bmode=(88, 951) rf=(88, 951) (719KB)
+  ✓ 1.4s
+
+[B] 9/100 (global idx=108)
+  → data/kwave_gt/sample_0108  ct=(128, 128) bmode=(88, 909) rf=(88, 909) (690KB)
+  ✓ 1.7s
+
+[B] 10/100 (global idx=109)
+  → data/kwave_gt/sample_0109  ct=(128, 128) bmode=(88, 966) rf=(88, 966) (729KB)
+  ✓ 1.6s
+
+[B] 11/100 (global idx=110)
+  → data/kwave_gt/sample_0110  ct=(128, 128) bmode=(88, 969) rf=(88, 969) (731KB)
+  ✓ 1.7s
+
+[B] 12/100 (global idx=111)
+  → data/kwave_gt/sample_0111  ct=(128, 128) bmode=(88, 901) rf=(88, 901) (684KB)
+  ✓ 1.6s
+
+[B] 13/100 (global idx=112)
+  → data/kwave_gt/sample_0112  ct=(128, 128) bmode=(88, 990) rf=(88, 990) (745KB)
+  ✓ 1.6s
+
+[B] 14/100 (global idx=113)
+  → data/kwave_gt/sample_0113  ct=(128, 128) bmode=(88, 920) rf=(88, 920) (697KB)
+  ✓ 1.7s
+
+[B] 15/100 (global idx=114)
+  → data/kwave_gt/sample_0114  ct=(128, 128) bmode=(88, 941) rf=(88, 941) (712KB)
+  ✓ 1.5s
+
+[B] 16/100 (global idx=115)
+  → data/kwave_gt/sample_0115  ct=(128, 128) bmode=(88, 993) rf=(88, 993) (747KB)
+  ✓ 2.3s
+
+[B] 17/100 (global idx=116)
+  → data/kwave_gt/sample_0116  ct=(128, 128) bmode=(88, 919) rf=(88, 919) (697KB)
+  ✓ 1.5s
+
+[B] 18/100 (global idx=117)
+  → data/kwave_gt/sample_0117  ct=(128, 128) bmode=(88, 890) rf=(88, 890) (677KB)
+  ✓ 1.5s
+
+[B] 19/100 (global idx=118)
+  → data/kwave_gt/sample_0118  ct=(128, 128) bmode=(88, 949) rf=(88, 949) (717KB)
+  ✓ 1.7s
+
+[B] 20/100 (global idx=119)
+  → data/kwave_gt/sample_0119  ct=(128, 128) bmode=(88, 899) rf=(88, 899) (683KB)
+  ✓ 1.3s
+
+[B] 21/100 (global idx=120)
+  → data/kwave_gt/sample_0120  ct=(128, 128) bmode=(88, 903) rf=(88, 903) (686KB)
+  ✓ 1.7s
+
+[B] 22/100 (global idx=121)
+  → data/kwave_gt/sample_0121  ct=(128, 128) bmode=(88, 994) rf=(88, 994) (748KB)
+  ✓ 1.6s
+
+[B] 23/100 (global idx=122)
+  → data/kwave_gt/sample_0122  ct=(128, 128) bmode=(88, 953) rf=(88, 953) (720KB)
+  ✓ 1.8s
+
+[B] 24/100 (global idx=123)
+  → data/kwave_gt/sample_0123  ct=(128, 128) bmode=(88, 976) rf=(88, 976) (736KB)
+  ✓ 1.5s
+
+[B] 25/100 (global idx=124)
+  → data/kwave_gt/sample_0124  ct=(128, 128) bmode=(88, 939) rf=(88, 939) (710KB)
+  ✓ 1.7s
+
+[B] 26/100 (global idx=125)
+  → data/kwave_gt/sample_0125  ct=(128, 128) bmode=(88, 889) rf=(88, 889) (676KB)
+  ✓ 1.6s
+
+[B] 27/100 (global idx=126)
+  → data/kwave_gt/sample_0126  ct=(128, 128) bmode=(88, 899) rf=(88, 899) (683KB)
+  ✓ 1.5s
+
+[B] 28/100 (global idx=127)
+  → data/kwave_gt/sample_0127  ct=(128, 128) bmode=(88, 975) rf=(88, 975) (735KB)
+  ✓ 1.9s
+
+[B] 29/100 (global idx=128)
+  → data/kwave_gt/sample_0128  ct=(128, 128) bmode=(88, 913) rf=(88, 913) (692KB)
+  ✓ 2.0s
+
+[B] 30/100 (global idx=129)
+  → data/kwave_gt/sample_0129  ct=(128, 128) bmode=(88, 954) rf=(88, 954) (721KB)
+  ✓ 1.8s
+
+[B] 31/100 (global idx=130)
+  → data/kwave_gt/sample_0130  ct=(128, 128) bmode=(88, 983) rf=(88, 983) (741KB)
+  ✓ 1.7s
+
+[B] 32/100 (global idx=131)
+  → data/kwave_gt/sample_0131  ct=(128, 128) bmode=(88, 933) rf=(88, 933) (706KB)
+  ✓ 1.7s
+
+[B] 33/100 (global idx=132)
+  → data/kwave_gt/sample_0132  ct=(128, 128) bmode=(88, 929) rf=(88, 929) (703KB)
+  ✓ 1.6s
+
+[B] 34/100 (global idx=133)
+  → data/kwave_gt/sample_0133  ct=(128, 128) bmode=(88, 959) rf=(88, 959) (724KB)
+  ✓ 1.7s
+
+[B] 35/100 (global idx=134)
+  → data/kwave_gt/sample_0134  ct=(128, 128) bmode=(88, 983) rf=(88, 983) (741KB)
+  ✓ 1.8s
+
+[B] 36/100 (global idx=135)
+  → data/kwave_gt/sample_0135  ct=(128, 128) bmode=(88, 915) rf=(88, 915) (694KB)
+  ✓ 1.4s
+
+[B] 37/100 (global idx=136)
+  → data/kwave_gt/sample_0136  ct=(128, 128) bmode=(88, 913) rf=(88, 913) (692KB)
+  ✓ 1.6s
+
+[B] 38/100 (global idx=137)
+  → data/kwave_gt/sample_0137  ct=(128, 128) bmode=(88, 978) rf=(88, 978) (737KB)
+  ✓ 1.6s
+
+[B] 39/100 (global idx=138)
+  → data/kwave_gt/sample_0138  ct=(128, 128) bmode=(88, 899) rf=(88, 899) (683KB)
+  ✓ 2.1s
+
+[B] 40/100 (global idx=139)
+  → data/kwave_gt/sample_0139  ct=(128, 128) bmode=(88, 953) rf=(88, 953) (720KB)
+  ✓ 1.7s
+
+[B] 41/100 (global idx=140)
+  → data/kwave_gt/sample_0140  ct=(128, 128) bmode=(88, 903) rf=(88, 903) (686KB)
+  ✓ 1.4s
+
+[B] 42/100 (global idx=141)
+  → data/kwave_gt/sample_0141  ct=(128, 128) bmode=(88, 921) rf=(88, 921) (698KB)
+  ✓ 1.4s
+
+[B] 43/100 (global idx=142)
+  → data/kwave_gt/sample_0142  ct=(128, 128) bmode=(88, 903) rf=(88, 903) (686KB)
+  ✓ 1.5s
+
+[B] 44/100 (global idx=143)
+  → data/kwave_gt/sample_0143  ct=(128, 128) bmode=(88, 905) rf=(88, 905) (687KB)
+  ✓ 1.7s
+
+[B] 45/100 (global idx=144)
+  → data/kwave_gt/sample_0144  ct=(128, 128) bmode=(88, 919) rf=(88, 919) (697KB)
+  ✓ 1.7s
+
+[B] 46/100 (global idx=145)
+  → data/kwave_gt/sample_0145  ct=(128, 128) bmode=(88, 900) rf=(88, 900) (683KB)
+  ✓ 1.7s
+
+[B] 47/100 (global idx=146)
+  → data/kwave_gt/sample_0146  ct=(128, 128) bmode=(88, 889) rf=(88, 889) (676KB)
+  ✓ 1.7s
+
+[B] 48/100 (global idx=147)
+  → data/kwave_gt/sample_0147  ct=(128, 128) bmode=(88, 906) rf=(88, 906) (688KB)
+  ✓ 1.5s
+
+[B] 49/100 (global idx=148)
+  → data/kwave_gt/sample_0148  ct=(128, 128) bmode=(88, 893) rf=(88, 893) (679KB)
+  ✓ 1.3s
+
+[B] 50/100 (global idx=149)
+  → data/kwave_gt/sample_0149  ct=(128, 128) bmode=(88, 963) rf=(88, 963) (727KB)
+  ✓ 2.0s
+
+[B] 51/100 (global idx=150)
+  → data/kwave_gt/sample_0150  ct=(128, 128) bmode=(88, 931) rf=(88, 931) (705KB)
+  ✓ 1.9s
+
+[B] 52/100 (global idx=151)
+  → data/kwave_gt/sample_0151  ct=(128, 128) bmode=(88, 943) rf=(88, 943) (713KB)
+  ✓ 1.6s
+
+[B] 53/100 (global idx=152)
+  → data/kwave_gt/sample_0152  ct=(128, 128) bmode=(88, 984) rf=(88, 984) (741KB)
+  ✓ 1.6s
+
+[B] 54/100 (global idx=153)
+  → data/kwave_gt/sample_0153  ct=(128, 128) bmode=(88, 892) rf=(88, 892) (678KB)
+  ✓ 1.8s
+
+[B] 55/100 (global idx=154)
+  → data/kwave_gt/sample_0154  ct=(128, 128) bmode=(88, 907) rf=(88, 907) (688KB)
+  ✓ 1.6s
+
+[B] 56/100 (global idx=155)
+  → data/kwave_gt/sample_0155  ct=(128, 128) bmode=(88, 915) rf=(88, 915) (694KB)
+  ✓ 1.7s
+
+[B] 57/100 (global idx=156)
+  → data/kwave_gt/sample_0156  ct=(128, 128) bmode=(88, 950) rf=(88, 950) (718KB)
+  ✓ 1.7s
+
+[B] 58/100 (global idx=157)
+  → data/kwave_gt/sample_0157  ct=(128, 128) bmode=(88, 893) rf=(88, 893) (679KB)
+  ✓ 2.4s
+
+[B] 59/100 (global idx=158)
+  → data/kwave_gt/sample_0158  ct=(128, 128) bmode=(88, 928) rf=(88, 928) (703KB)
+  ✓ 1.7s
+
+[B] 60/100 (global idx=159)
+  → data/kwave_gt/sample_0159  ct=(128, 128) bmode=(88, 898) rf=(88, 898) (682KB)
+  ✓ 1.8s
+
+[B] 61/100 (global idx=160)
+  → data/kwave_gt/sample_0160  ct=(128, 128) bmode=(88, 979) rf=(88, 979) (738KB)
+  ✓ 1.4s
+
+[B] 62/100 (global idx=161)
+  → data/kwave_gt/sample_0161  ct=(128, 128) bmode=(88, 990) rf=(88, 990) (745KB)
+  ✓ 1.8s
+
+[B] 63/100 (global idx=162)
+  → data/kwave_gt/sample_0162  ct=(128, 128) bmode=(88, 898) rf=(88, 898) (682KB)
+  ✓ 1.6s
+
+[B] 64/100 (global idx=163)
+  → data/kwave_gt/sample_0163  ct=(128, 128) bmode=(88, 987) rf=(88, 987) (743KB)
+  ✓ 1.6s
+
+[B] 65/100 (global idx=164)
+  → data/kwave_gt/sample_0164  ct=(128, 128) bmode=(88, 996) rf=(88, 996) (749KB)
+  ✓ 2.6s
+
+[B] 66/100 (global idx=165)
+  → data/kwave_gt/sample_0165  ct=(128, 128) bmode=(88, 973) rf=(88, 973) (734KB)
+  ✓ 1.5s
+
+[B] 67/100 (global idx=166)
+  → data/kwave_gt/sample_0166  ct=(128, 128) bmode=(88, 958) rf=(88, 958) (723KB)
+  ✓ 1.8s
+
+[B] 68/100 (global idx=167)
+  → data/kwave_gt/sample_0167  ct=(128, 128) bmode=(88, 902) rf=(88, 902) (685KB)
+  ✓ 1.5s
+
+[B] 69/100 (global idx=168)
+  → data/kwave_gt/sample_0168  ct=(128, 128) bmode=(88, 946) rf=(88, 946) (715KB)
+  ✓ 1.8s
+
+[B] 70/100 (global idx=169)
+  → data/kwave_gt/sample_0169  ct=(128, 128) bmode=(88, 982) rf=(88, 982) (740KB)
+  ✓ 1.6s
+
+[B] 71/100 (global idx=170)
+  → data/kwave_gt/sample_0170  ct=(128, 128) bmode=(88, 938) rf=(88, 938) (710KB)
+  ✓ 1.7s
+
+[B] 72/100 (global idx=171)
+  → data/kwave_gt/sample_0171  ct=(128, 128) bmode=(88, 958) rf=(88, 958) (723KB)
+  ✓ 1.5s
+
+[B] 73/100 (global idx=172)
+  → data/kwave_gt/sample_0172  ct=(128, 128) bmode=(88, 917) rf=(88, 917) (695KB)
+  ✓ 1.6s
+
+[B] 74/100 (global idx=173)
+  → data/kwave_gt/sample_0173  ct=(128, 128) bmode=(88, 940) rf=(88, 940) (711KB)
+  ✓ 1.8s
+
+[B] 75/100 (global idx=174)
+  → data/kwave_gt/sample_0174  ct=(128, 128) bmode=(88, 933) rf=(88, 933) (706KB)
+  ✓ 1.5s
+
+[B] 76/100 (global idx=175)
+  → data/kwave_gt/sample_0175  ct=(128, 128) bmode=(88, 928) rf=(88, 928) (703KB)
+  ✓ 1.6s
+
+[B] 77/100 (global idx=176)
+  → data/kwave_gt/sample_0176  ct=(128, 128) bmode=(88, 928) rf=(88, 928) (703KB)
+  ✓ 1.7s
+
+[B] 78/100 (global idx=177)
+  → data/kwave_gt/sample_0177  ct=(128, 128) bmode=(88, 929) rf=(88, 929) (703KB)
+  ✓ 1.2s
+
+[B] 79/100 (global idx=178)
+  → data/kwave_gt/sample_0178  ct=(128, 128) bmode=(88, 963) rf=(88, 963) (727KB)
+  ✓ 1.7s
+
+[B] 80/100 (global idx=179)
+  → data/kwave_gt/sample_0179  ct=(128, 128) bmode=(88, 992) rf=(88, 992) (747KB)
+  ✓ 1.7s
+
+[B] 81/100 (global idx=180)
+  → data/kwave_gt/sample_0180  ct=(128, 128) bmode=(88, 989) rf=(88, 989) (745KB)
+  ✓ 1.5s
+
+[B] 82/100 (global idx=181)
+  → data/kwave_gt/sample_0181  ct=(128, 128) bmode=(88, 923) rf=(88, 923) (699KB)
+  ✓ 1.7s
+
+[B] 83/100 (global idx=182)
+  → data/kwave_gt/sample_0182  ct=(128, 128) bmode=(88, 946) rf=(88, 946) (715KB)
+  ✓ 1.4s
+
+[B] 84/100 (global idx=183)
+  → data/kwave_gt/sample_0183  ct=(128, 128) bmode=(88, 959) rf=(88, 959) (724KB)
+  ✓ 1.7s
+
+[B] 85/100 (global idx=184)
+  → data/kwave_gt/sample_0184  ct=(128, 128) bmode=(88, 976) rf=(88, 976) (736KB)
+  ✓ 1.2s
+
+[B] 86/100 (global idx=185)
+  → data/kwave_gt/sample_0185  ct=(128, 128) bmode=(88, 957) rf=(88, 957) (723KB)
+  ✓ 1.5s
+
+[B] 87/100 (global idx=186)
+  → data/kwave_gt/sample_0186  ct=(128, 128) bmode=(88, 919) rf=(88, 919) (697KB)
+  ✓ 1.5s
+
+[B] 88/100 (global idx=187)
+  → data/kwave_gt/sample_0187  ct=(128, 128) bmode=(88, 910) rf=(88, 910) (690KB)
+  ✓ 1.7s
+
+[B] 89/100 (global idx=188)
+  → data/kwave_gt/sample_0188  ct=(128, 128) bmode=(88, 964) rf=(88, 964) (727KB)
+  ✓ 1.7s
+
+[B] 90/100 (global idx=189)
+  → data/kwave_gt/sample_0189  ct=(128, 128) bmode=(88, 902) rf=(88, 902) (685KB)
+  ✓ 1.6s
+
+[B] 91/100 (global idx=190)
+  → data/kwave_gt/sample_0190  ct=(128, 128) bmode=(88, 955) rf=(88, 955) (721KB)
+  ✓ 1.5s
+
+[B] 92/100 (global idx=191)
+  → data/kwave_gt/sample_0191  ct=(128, 128) bmode=(88, 968) rf=(88, 968) (730KB)
+  ✓ 1.6s
+
+[B] 93/100 (global idx=192)
+  → data/kwave_gt/sample_0192  ct=(128, 128) bmode=(88, 896) rf=(88, 896) (681KB)
+  ✓ 1.4s
+
+[B] 94/100 (global idx=193)
+  → data/kwave_gt/sample_0193  ct=(128, 128) bmode=(88, 902) rf=(88, 902) (685KB)
+  ✓ 1.6s
+
+[B] 95/100 (global idx=194)
+  → data/kwave_gt/sample_0194  ct=(128, 128) bmode=(88, 993) rf=(88, 993) (747KB)
+  ✓ 1.9s
+
+[B] 96/100 (global idx=195)
+  → data/kwave_gt/sample_0195  ct=(128, 128) bmode=(88, 953) rf=(88, 953) (720KB)
+  ✓ 1.7s
+
+[B] 97/100 (global idx=196)
+  → data/kwave_gt/sample_0196  ct=(128, 128) bmode=(88, 974) rf=(88, 974) (734KB)
+  ✓ 1.9s
+
+[B] 98/100 (global idx=197)
+  → data/kwave_gt/sample_0197  ct=(128, 128) bmode=(88, 992) rf=(88, 992) (747KB)
+  ✓ 1.6s
+
+[B] 99/100 (global idx=198)
+  → data/kwave_gt/sample_0198  ct=(128, 128) bmode=(88, 915) rf=(88, 915) (694KB)
+  ✓ 2.0s
+
+[B] 100/100 (global idx=199)
+  → data/kwave_gt/sample_0199  ct=(128, 128) bmode=(88, 898) rf=(88, 898) (682KB)
+  ✓ 1.7s
+
+============================================================
+Scenario C: 100 samples
+============================================================
+
+[C] 1/100 (global idx=200)
+  → data/kwave_gt/sample_0200  ct=(128, 128) bmode=(88, 1024) rf=(88, 1024) (769KB)
+  ✓ 2.3s
+
+[C] 2/100 (global idx=201)
+  → data/kwave_gt/sample_0201  ct=(128, 128) bmode=(88, 1014) rf=(88, 1014) (762KB)
+  ✓ 2.2s
+
+[C] 3/100 (global idx=202)
+  → data/kwave_gt/sample_0202  ct=(128, 128) bmode=(88, 1003) rf=(88, 1003) (754KB)
+  ✓ 2.1s
+
+[C] 4/100 (global idx=203)
+  → data/kwave_gt/sample_0203  ct=(128, 128) bmode=(88, 996) rf=(88, 996) (750KB)
+  ✓ 1.9s
+
+[C] 5/100 (global idx=204)
+  → data/kwave_gt/sample_0204  ct=(128, 128) bmode=(88, 1093) rf=(88, 1093) (816KB)
+  ✓ 1.8s
+
+[C] 6/100 (global idx=205)
+  → data/kwave_gt/sample_0205  ct=(128, 128) bmode=(88, 907) rf=(88, 907) (688KB)
+  ✓ 1.9s
+
+[C] 7/100 (global idx=206)
+  → data/kwave_gt/sample_0206  ct=(128, 128) bmode=(88, 980) rf=(88, 980) (739KB)
+  ✓ 2.0s
+
+[C] 8/100 (global idx=207)
+  → data/kwave_gt/sample_0207  ct=(128, 128) bmode=(88, 961) rf=(88, 961) (725KB)
+  ✓ 1.5s
+
+[C] 9/100 (global idx=208)
+  → data/kwave_gt/sample_0208  ct=(128, 128) bmode=(88, 1056) rf=(88, 1056) (791KB)
+  ✓ 2.0s
+
+[C] 10/100 (global idx=209)
+  → data/kwave_gt/sample_0209  ct=(128, 128) bmode=(88, 957) rf=(88, 957) (723KB)
+  ✓ 1.3s
+
+[C] 11/100 (global idx=210)
+  → data/kwave_gt/sample_0210  ct=(128, 128) bmode=(88, 920) rf=(88, 920) (697KB)
+  ✓ 1.6s
+
+[C] 12/100 (global idx=211)
+  → data/kwave_gt/sample_0211  ct=(128, 128) bmode=(88, 972) rf=(88, 972) (733KB)
+  ✓ 1.6s
+
+[C] 13/100 (global idx=212)
+  → data/kwave_gt/sample_0212  ct=(128, 128) bmode=(88, 1010) rf=(88, 1010) (759KB)
+  ✓ 1.7s
+
+[C] 14/100 (global idx=213)
+  → data/kwave_gt/sample_0213  ct=(128, 128) bmode=(88, 993) rf=(88, 993) (747KB)
+  ✓ 1.8s
+
+[C] 15/100 (global idx=214)
+  → data/kwave_gt/sample_0214  ct=(128, 128) bmode=(88, 1106) rf=(88, 1106) (825KB)
+  ✓ 1.7s
+
+[C] 16/100 (global idx=215)
+  → data/kwave_gt/sample_0215  ct=(128, 128) bmode=(88, 913) rf=(88, 913) (692KB)
+  ✓ 1.6s
+
+[C] 17/100 (global idx=216)
+  → data/kwave_gt/sample_0216  ct=(128, 128) bmode=(88, 1028) rf=(88, 1028) (772KB)
+  ✓ 2.2s
+
+[C] 18/100 (global idx=217)
+  → data/kwave_gt/sample_0217  ct=(128, 128) bmode=(88, 1039) rf=(88, 1039) (779KB)
+  ✓ 1.6s
+
+[C] 19/100 (global idx=218)
+  → data/kwave_gt/sample_0218  ct=(128, 128) bmode=(88, 988) rf=(88, 988) (744KB)
+  ✓ 1.9s
+
+[C] 20/100 (global idx=219)
+  → data/kwave_gt/sample_0219  ct=(128, 128) bmode=(88, 989) rf=(88, 989) (745KB)
+  ✓ 1.7s
+
+[C] 21/100 (global idx=220)
+  → data/kwave_gt/sample_0220  ct=(128, 128) bmode=(88, 954) rf=(88, 954) (721KB)
+  ✓ 1.8s
+
+[C] 22/100 (global idx=221)
+  → data/kwave_gt/sample_0221  ct=(128, 128) bmode=(88, 912) rf=(88, 912) (692KB)
+  ✓ 1.8s
+
+[C] 23/100 (global idx=222)
+  → data/kwave_gt/sample_0222  ct=(128, 128) bmode=(88, 1082) rf=(88, 1082) (809KB)
+  ✓ 1.7s
+
+[C] 24/100 (global idx=223)
+  → data/kwave_gt/sample_0223  ct=(128, 128) bmode=(88, 911) rf=(88, 911) (691KB)
+  ✓ 1.6s
+
+[C] 25/100 (global idx=224)
+  → data/kwave_gt/sample_0224  ct=(128, 128) bmode=(88, 1035) rf=(88, 1035) (776KB)
+  ✓ 1.9s
+
+[C] 26/100 (global idx=225)
+  → data/kwave_gt/sample_0225  ct=(128, 128) bmode=(88, 1086) rf=(88, 1086) (811KB)
+  ✓ 1.6s
+
+[C] 27/100 (global idx=226)
+  → data/kwave_gt/sample_0226  ct=(128, 128) bmode=(88, 940) rf=(88, 940) (711KB)
+  ✓ 1.6s
+
+[C] 28/100 (global idx=227)
+  → data/kwave_gt/sample_0227  ct=(128, 128) bmode=(88, 931) rf=(88, 931) (705KB)
+  ✓ 1.7s
+
+[C] 29/100 (global idx=228)
+  → data/kwave_gt/sample_0228  ct=(128, 128) bmode=(88, 1033) rf=(88, 1033) (775KB)
+  ✓ 1.5s
+
+[C] 30/100 (global idx=229)
+  → data/kwave_gt/sample_0229  ct=(128, 128) bmode=(88, 899) rf=(88, 899) (683KB)
+  ✓ 1.4s
+
+[C] 31/100 (global idx=230)
+  → data/kwave_gt/sample_0230  ct=(128, 128) bmode=(88, 1065) rf=(88, 1065) (797KB)
+  ✓ 1.8s
+
+[C] 32/100 (global idx=231)
+  → data/kwave_gt/sample_0231  ct=(128, 128) bmode=(88, 900) rf=(88, 900) (684KB)
+  ✓ 1.5s
+
+[C] 33/100 (global idx=232)
+  → data/kwave_gt/sample_0232  ct=(128, 128) bmode=(88, 1093) rf=(88, 1093) (816KB)
+  ✓ 1.9s
+
+[C] 34/100 (global idx=233)
+  → data/kwave_gt/sample_0233  ct=(128, 128) bmode=(88, 1073) rf=(88, 1073) (802KB)
+  ✓ 1.7s
+
+[C] 35/100 (global idx=234)
+  → data/kwave_gt/sample_0234  ct=(128, 128) bmode=(88, 932) rf=(88, 932) (706KB)
+  ✓ 1.5s
+
+[C] 36/100 (global idx=235)
+  → data/kwave_gt/sample_0235  ct=(128, 128) bmode=(88, 1052) rf=(88, 1052) (788KB)
+  ✓ 1.5s
+
+[C] 37/100 (global idx=236)
+  → data/kwave_gt/sample_0236  ct=(128, 128) bmode=(88, 1076) rf=(88, 1076) (805KB)
+  ✓ 2.1s
+
+[C] 38/100 (global idx=237)
+  → data/kwave_gt/sample_0237  ct=(128, 128) bmode=(88, 930) rf=(88, 930) (704KB)
+  ✓ 1.7s
+
+[C] 39/100 (global idx=238)
+  → data/kwave_gt/sample_0238  ct=(128, 128) bmode=(88, 1044) rf=(88, 1044) (783KB)
+  ✓ 1.5s
+
+[C] 40/100 (global idx=239)
+  → data/kwave_gt/sample_0239  ct=(128, 128) bmode=(88, 899) rf=(88, 899) (683KB)
+  ✓ 1.4s
+
+[C] 41/100 (global idx=240)
+  → data/kwave_gt/sample_0240  ct=(128, 128) bmode=(88, 896) rf=(88, 896) (681KB)
+  ✓ 1.4s
+
+[C] 42/100 (global idx=241)
+  → data/kwave_gt/sample_0241  ct=(128, 128) bmode=(88, 925) rf=(88, 925) (701KB)
+  ✓ 1.6s
+
+[C] 43/100 (global idx=242)
+  → data/kwave_gt/sample_0242  ct=(128, 128) bmode=(88, 928) rf=(88, 928) (703KB)
+  ✓ 1.5s
+
+[C] 44/100 (global idx=243)
+  → data/kwave_gt/sample_0243  ct=(128, 128) bmode=(88, 1061) rf=(88, 1061) (794KB)
+  ✓ 1.7s
+
+[C] 45/100 (global idx=244)
+  → data/kwave_gt/sample_0244  ct=(128, 128) bmode=(88, 1014) rf=(88, 1014) (762KB)
+  ✓ 2.0s
+
+[C] 46/100 (global idx=245)
+  → data/kwave_gt/sample_0245  ct=(128, 128) bmode=(88, 954) rf=(88, 954) (721KB)
+  ✓ 1.3s
+
+[C] 47/100 (global idx=246)
+  → data/kwave_gt/sample_0246  ct=(128, 128) bmode=(88, 1042) rf=(88, 1042) (781KB)
+  ✓ 1.4s
+
+[C] 48/100 (global idx=247)
+  → data/kwave_gt/sample_0247  ct=(128, 128) bmode=(88, 920) rf=(88, 920) (697KB)
+  ✓ 1.2s
+
+[C] 49/100 (global idx=248)
+  → data/kwave_gt/sample_0248  ct=(128, 128) bmode=(88, 977) rf=(88, 977) (736KB)
+  ✓ 1.6s
+
+[C] 50/100 (global idx=249)
+  → data/kwave_gt/sample_0249  ct=(128, 128) bmode=(88, 917) rf=(88, 917) (695KB)
+  ✓ 1.6s
+
+[C] 51/100 (global idx=250)
+  → data/kwave_gt/sample_0250  ct=(128, 128) bmode=(88, 955) rf=(88, 955) (721KB)
+  ✓ 2.3s
+
+[C] 52/100 (global idx=251)
+  → data/kwave_gt/sample_0251  ct=(128, 128) bmode=(88, 1028) rf=(88, 1028) (772KB)
+  ✓ 1.8s
+
+[C] 53/100 (global idx=252)
+  → data/kwave_gt/sample_0252  ct=(128, 128) bmode=(88, 978) rf=(88, 978) (737KB)
+  ✓ 1.5s
+
+[C] 54/100 (global idx=253)
+  → data/kwave_gt/sample_0253  ct=(128, 128) bmode=(88, 957) rf=(88, 957) (723KB)
+  ✓ 1.6s
+
+[C] 55/100 (global idx=254)
+  → data/kwave_gt/sample_0254  ct=(128, 128) bmode=(88, 980) rf=(88, 980) (739KB)
+  ✓ 1.8s
+
+[C] 56/100 (global idx=255)
+  → data/kwave_gt/sample_0255  ct=(128, 128) bmode=(88, 1014) rf=(88, 1014) (762KB)
+  ✓ 2.0s
+
+[C] 57/100 (global idx=256)
+  → data/kwave_gt/sample_0256  ct=(128, 128) bmode=(88, 1043) rf=(88, 1043) (782KB)
+  ✓ 1.9s
+
+[C] 58/100 (global idx=257)
+  → data/kwave_gt/sample_0257  ct=(128, 128) bmode=(88, 957) rf=(88, 957) (723KB)
+  ✓ 1.6s
+
+[C] 59/100 (global idx=258)
+  → data/kwave_gt/sample_0258  ct=(128, 128) bmode=(88, 1009) rf=(88, 1009) (758KB)
+  ✓ 1.8s
+
+[C] 60/100 (global idx=259)
+  → data/kwave_gt/sample_0259  ct=(128, 128) bmode=(88, 967) rf=(88, 967) (730KB)
+  ✓ 1.7s
+
+[C] 61/100 (global idx=260)
+  → data/kwave_gt/sample_0260  ct=(128, 128) bmode=(88, 1050) rf=(88, 1050) (787KB)
+  ✓ 1.9s
+
+[C] 62/100 (global idx=261)
+  → data/kwave_gt/sample_0261  ct=(128, 128) bmode=(88, 999) rf=(88, 999) (752KB)
+  ✓ 1.5s
+
+[C] 63/100 (global idx=262)
+  → data/kwave_gt/sample_0262  ct=(128, 128) bmode=(88, 1064) rf=(88, 1064) (796KB)
+  ✓ 1.7s
+
+[C] 64/100 (global idx=263)
+  → data/kwave_gt/sample_0263  ct=(128, 128) bmode=(88, 997) rf=(88, 997) (750KB)
+  ✓ 1.5s
+
+[C] 65/100 (global idx=264)
+  → data/kwave_gt/sample_0264  ct=(128, 128) bmode=(88, 903) rf=(88, 903) (686KB)
+  ✓ 1.4s
+
+[C] 66/100 (global idx=265)
+  → data/kwave_gt/sample_0265  ct=(128, 128) bmode=(88, 949) rf=(88, 949) (717KB)
+  ✓ 1.8s
+
+[C] 67/100 (global idx=266)
+  → data/kwave_gt/sample_0266  ct=(128, 128) bmode=(88, 925) rf=(88, 925) (701KB)
+  ✓ 1.6s
+
+[C] 68/100 (global idx=267)
+  → data/kwave_gt/sample_0267  ct=(128, 128) bmode=(88, 890) rf=(88, 890) (677KB)
+  ✓ 1.3s
+
+[C] 69/100 (global idx=268)
+  → data/kwave_gt/sample_0268  ct=(128, 128) bmode=(88, 1077) rf=(88, 1077) (805KB)
+  ✓ 1.7s
+
+[C] 70/100 (global idx=269)
+  → data/kwave_gt/sample_0269  ct=(128, 128) bmode=(88, 1020) rf=(88, 1020) (766KB)
+  ✓ 1.5s
+
+[C] 71/100 (global idx=270)
+  → data/kwave_gt/sample_0270  ct=(128, 128) bmode=(88, 968) rf=(88, 968) (730KB)
+  ✓ 1.5s
+
+[C] 72/100 (global idx=271)
+  → data/kwave_gt/sample_0271  ct=(128, 128) bmode=(88, 1058) rf=(88, 1058) (792KB)
+  ✓ 1.8s
+
+[C] 73/100 (global idx=272)
+  → data/kwave_gt/sample_0272  ct=(128, 128) bmode=(88, 1039) rf=(88, 1039) (779KB)
+  ✓ 1.9s
+
+[C] 74/100 (global idx=273)
+  → data/kwave_gt/sample_0273  ct=(128, 128) bmode=(88, 1029) rf=(88, 1029) (772KB)
+  ✓ 2.3s
+
+[C] 75/100 (global idx=274)
+  → data/kwave_gt/sample_0274  ct=(128, 128) bmode=(88, 933) rf=(88, 933) (706KB)
+  ✓ 1.4s
+
+[C] 76/100 (global idx=275)
+  → data/kwave_gt/sample_0275  ct=(128, 128) bmode=(88, 924) rf=(88, 924) (700KB)
+  ✓ 1.7s
+
+[C] 77/100 (global idx=276)
+  → data/kwave_gt/sample_0276  ct=(128, 128) bmode=(88, 1106) rf=(88, 1106) (825KB)
+  ✓ 1.6s
+
+[C] 78/100 (global idx=277)
+  → data/kwave_gt/sample_0277  ct=(128, 128) bmode=(88, 1107) rf=(88, 1107) (826KB)
+  ✓ 1.7s
+
+[C] 79/100 (global idx=278)
+  → data/kwave_gt/sample_0278  ct=(128, 128) bmode=(88, 986) rf=(88, 986) (743KB)
+  ✓ 1.6s
+
+[C] 80/100 (global idx=279)
+  → data/kwave_gt/sample_0279  ct=(128, 128) bmode=(88, 1054) rf=(88, 1054) (789KB)
+  ✓ 1.9s
+
+[C] 81/100 (global idx=280)
+  → data/kwave_gt/sample_0280  ct=(128, 128) bmode=(88, 991) rf=(88, 991) (746KB)
+  ✓ 1.7s
+
+[C] 82/100 (global idx=281)
+  → data/kwave_gt/sample_0281  ct=(128, 128) bmode=(88, 1088) rf=(88, 1088) (813KB)
+  ✓ 3.9s
+
+[C] 83/100 (global idx=282)
+  → data/kwave_gt/sample_0282  ct=(128, 128) bmode=(88, 939) rf=(88, 939) (710KB)
+  ✓ 2.3s
+
+[C] 84/100 (global idx=283)
+  → data/kwave_gt/sample_0283  ct=(128, 128) bmode=(88, 1017) rf=(88, 1017) (764KB)
+  ✓ 1.8s
+
+[C] 85/100 (global idx=284)
+  → data/kwave_gt/sample_0284  ct=(128, 128) bmode=(88, 906) rf=(88, 906) (688KB)
+  ✓ 1.5s
+
+[C] 86/100 (global idx=285)
+  → data/kwave_gt/sample_0285  ct=(128, 128) bmode=(88, 1028) rf=(88, 1028) (772KB)
+  ✓ 1.9s
+
+[C] 87/100 (global idx=286)
+  → data/kwave_gt/sample_0286  ct=(128, 128) bmode=(88, 1036) rf=(88, 1036) (777KB)
+  ✓ 1.9s
+
+[C] 88/100 (global idx=287)
+  → data/kwave_gt/sample_0287  ct=(128, 128) bmode=(88, 968) rf=(88, 968) (730KB)
+  ✓ 1.6s
+
+[C] 89/100 (global idx=288)
+  → data/kwave_gt/sample_0288  ct=(128, 128) bmode=(88, 962) rf=(88, 962) (726KB)
+  ✓ 1.7s
+
+[C] 90/100 (global idx=289)
+  → data/kwave_gt/sample_0289  ct=(128, 128) bmode=(88, 1057) rf=(88, 1057) (791KB)
+  ✓ 1.8s
+
+[C] 91/100 (global idx=290)
+  → data/kwave_gt/sample_0290  ct=(128, 128) bmode=(88, 999) rf=(88, 999) (752KB)
+  ✓ 1.6s
+
+[C] 92/100 (global idx=291)
+  → data/kwave_gt/sample_0291  ct=(128, 128) bmode=(88, 1076) rf=(88, 1076) (805KB)
+  ✓ 1.8s
+
+[C] 93/100 (global idx=292)
+  → data/kwave_gt/sample_0292  ct=(128, 128) bmode=(88, 998) rf=(88, 998) (751KB)
+  ✓ 1.7s
+
+[C] 94/100 (global idx=293)
+  → data/kwave_gt/sample_0293  ct=(128, 128) bmode=(88, 975) rf=(88, 975) (735KB)
+  ✓ 1.7s
+
+[C] 95/100 (global idx=294)
+  → data/kwave_gt/sample_0294  ct=(128, 128) bmode=(88, 1027) rf=(88, 1027) (771KB)
+  ✓ 1.6s
+
+[C] 96/100 (global idx=295)
+  → data/kwave_gt/sample_0295  ct=(128, 128) bmode=(88, 930) rf=(88, 930) (704KB)
+  ✓ 1.6s
+
+[C] 97/100 (global idx=296)
+  → data/kwave_gt/sample_0296  ct=(128, 128) bmode=(88, 1093) rf=(88, 1093) (816KB)
+  ✓ 1.8s
+
+[C] 98/100 (global idx=297)
+  → data/kwave_gt/sample_0297  ct=(128, 128) bmode=(88, 1020) rf=(88, 1020) (766KB)
+  ✓ 1.5s
+
+[C] 99/100 (global idx=298)
+  → data/kwave_gt/sample_0298  ct=(128, 128) bmode=(88, 949) rf=(88, 949) (717KB)
+  ✓ 1.6s
+
+[C] 100/100 (global idx=299)
+  → data/kwave_gt/sample_0299  ct=(128, 128) bmode=(88, 1105) rf=(88, 1105) (824KB)
+  ✓ 2.5s
+
+============================================================
+Done! 300 OK, 0 failed, 506s (8.4min)
+Output: data/kwave_gt
+============================================================

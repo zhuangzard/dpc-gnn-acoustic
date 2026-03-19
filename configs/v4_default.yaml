@@ -1,0 +1,33 @@
+# DPC-GNN-Acoustic V4 Default Configuration
+# ============================================
+# CT → GNN Encoder → (c, α, σ) → Leapfrog → DAS Beamformer → B-mode
+# Loss: L1 + (1 - SSIM) vs k-Wave GT B-mode
+
+model:
+  hidden_dim: 96          # GNN hidden dimension
+  n_mp_layers: 5          # Number of antisymmetric message-passing layers
+  k_local: 8              # k-NN locality for graph edges
+  c_min: 1400             # Min speed of sound (m/s)
+  c_max: 1700             # Max speed of sound (m/s)
+
+physics:
+  dx: 2.34e-4             # Grid spacing (m) — matches k-Wave setup
+  dt: 2.0e-8              # Time step (s) — CFL-safe for c_max=1700
+  n_time_steps: 200       # Number of time steps per simulation
+  pml_width: 20           # PML absorbing boundary width (grid cells)
+  c0: 1540.0              # Reference speed of sound for beamforming (m/s)
+
+data:
+  data_dir: data/kwave_gt           # Directory with k-Wave GT data
+  grid_resolution: 256              # CT/simulation grid resolution
+
+training:
+  epochs: 200
+  lr: 1.0e-4              # AdamW learning rate
+  weight_decay: 1.0e-5    # AdamW weight decay
+  batch_size: 1           # Batch size (memory-limited due to wave propagation)
+  warmup_epochs: 5        # Linear warmup epochs
+  patience: 30            # Early stopping patience
+  grad_clip: 1.0          # Gradient clipping max norm
+  use_amp: false          # Automatic mixed precision (disabled by default)
+  checkpoint_dir: checkpoints_v4

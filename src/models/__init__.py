@@ -1,3 +1,4 @@
-from .kwave_inspired_mp import KWaveInspiredMP
-from .dpc_gnn_acoustic import DPCGNNAcousticV2
-from .components import DispersionCorrectionNet, AttenuationNet, LearnedPML
+# V4 models
+from .dpc_gnn_acoustic_v4 import DPCGNNAcousticV4
+from .wave_propagator_v4 import AcousticLeapfrogV4
+from .beamform_decoder_v4 import DifferentiableBeamformerV4

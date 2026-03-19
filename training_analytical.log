@@ -1,0 +1,31 @@
+
+============================================================
+DPC-GNN-Acoustic v3 — Training
+  Config: configs/default_2d.yaml
+  Device: cuda
+  Dataset: analytical
+============================================================
+
+
+============================================================
+DPC-GNN-Acoustic v3 — Model Summary
+============================================================
+  node_encoder        :     17,664 params
+  p0_generator        :     16,641 params
+  propagator          :      4,609 params
+  decoder             :        129 params
+  TOTAL               :     39,043 trainable /     39,043 total
+  Device: cuda
+============================================================
+
+📐 Using ANALYTICAL dataset (exact solutions as GT)
+[AnalyticalDataset] train: 240 samples (100×3 scenarios)
+[AnalyticalDataset] val: 30 samples (100×3 scenarios)
+
+============================================================
+DPC-GNN-Acoustic v3 — Starting training: 500 epochs
+  Physics: dt=2.0e-08, steps=200
+  CFL ≈ 1540*2.0e-08/2.34e-4 ≈ 0.132
+============================================================
+
+  Epoch    1/500 | Loss: 1.018093e-01 | L1: 1.3093e-02 | SSIM: 0.1774 | Phys: 2.6883e-16 | LR: 5.00e-06

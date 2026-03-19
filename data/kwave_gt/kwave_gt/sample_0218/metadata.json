@@ -1,0 +1,27 @@
+{
+  "scenario": "C_inclusion",
+  "c_bg": 1540.0,
+  "c_inclusion": 1781.7271847366987,
+  "rho_bg": 1000.0,
+  "rho_inclusion": 1120.8635923683494,
+  "center": [
+    70,
+    73
+  ],
+  "radius_px": 10,
+  "Nt": 988,
+  "dt": 7.89262246233176e-08,
+  "n_sensors": 88,
+  "frequency": 2000000.0,
+  "n_elements": 128,
+  "domain_size": [
+    0.06,
+    0.06
+  ],
+  "grid_size": [
+    128,
+    128
+  ],
+  "dx": 0.00046875,
+  "pml_size": 20
+}
