@@ -68,9 +68,16 @@ class BeamformDecoder(nn.Module):
             torch.randn(n_lines, n_elements) * 0.01
         )
         
-        # FIX #5: Time-to-depth mapping (converts RF time samples to depth samples)
-        self.time_to_depth = nn.Sequential(
+        # FIX #5+#6: Two separate depth mappers for the two signal paths
+        # Path 1: processed RF features (hidden_dim) → depth samples
+        self.processed_to_depth = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
+            nn.SiLU(),
+            nn.Linear(hidden_dim, n_samples),
+        )
+        # Path 2: beamformed RF (n_time_steps) → depth samples
+        self.beamform_to_depth = nn.Sequential(
+            nn.Linear(n_time_steps, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, n_samples),
         )
@@ -130,10 +137,12 @@ class BeamformDecoder(nn.Module):
         # rf_signals: (n_elements, T), weights: (n_lines, n_elements)
         rf_beamformed = weights @ rf_signals  # (n_lines, T)
         
-        # Convert time samples to depth samples
-        bmode = self.time_to_depth(rf_processed.T.unsqueeze(0).expand(self.n_lines, -1, -1).mean(dim=1))
-        # Combine with beamformed signal
-        bmode = bmode + self.time_to_depth(rf_beamformed)
+        # FIX #6: Convert time samples to depth samples via two separate paths
+        # Path 1: processed RF features → mean over time → (n_lines, hidden_dim) → depth
+        processed_signal = rf_processed.T.unsqueeze(0).expand(self.n_lines, -1, -1).mean(dim=1)
+        bmode = self.processed_to_depth(processed_signal)  # (n_lines, n_samples)
+        # Path 2: beamformed RF → (n_lines, n_time_steps) → depth
+        bmode = bmode + self.beamform_to_depth(rf_beamformed)  # (n_lines, n_samples)
         
         # Envelope detection (absolute value as simple approximation)
         envelope = torch.abs(bmode)
