@@ -254,8 +254,32 @@ class KWaveDataset(Dataset):
             domain_size=self.domain_size,
         )
         
-        # Synthetic GT: simple geometric pattern
-        bmode_gt = torch.zeros(256, 512)
+        # FIX #10: Synthetic GT should NOT be all zeros (causes SSIM illusion).
+        # Generate analytic plane wave B-mode as ground truth.
+        # A simple tissue phantom produces reflections at inclusion boundaries.
+        bmode_h, bmode_w = 256, 512
+        y_coords = torch.linspace(0, 1, bmode_w).unsqueeze(0).expand(bmode_h, -1)
+        x_coords = torch.linspace(0, 1, bmode_h).unsqueeze(1).expand(-1, bmode_w)
+        
+        # Base speckle pattern (deterministic from seed)
+        rng_gt = torch.Generator().manual_seed(idx * 137 + 42)
+        speckle = torch.randn(bmode_h, bmode_w, generator=rng_gt) * 0.1
+        
+        # Depth-dependent attenuation (TGC-like)
+        tgc = torch.exp(-1.5 * y_coords)
+        
+        # Add reflections at inclusion boundaries (bright lines at depth)
+        bmode_gt = speckle * tgc
+        for inc_i in range(n_inclusions):
+            # Create a bright reflection band at random depth
+            rng_inc = torch.Generator().manual_seed(idx * 137 + inc_i)
+            depth = torch.rand(1, generator=rng_inc).item()
+            width = 0.02
+            reflection = 0.5 * torch.exp(-((y_coords - depth) / width) ** 2)
+            bmode_gt = bmode_gt + reflection * tgc
+        
+        # Normalize to [0, 1]
+        bmode_gt = (bmode_gt - bmode_gt.min()) / (bmode_gt.max() - bmode_gt.min() + 1e-8)
         
         return {
             'hu': hu,
@@ -301,16 +325,17 @@ class KWaveDataset(Dataset):
             alpha_0[mask] = a
             n_power[mask] = n
         
-        # Convert alpha from dB/cm to Np/m and apply frequency dependence
-        alpha_np = alpha_0 * 11.51  # dB/cm → Np/m
-        freq = float(self.frequency) if not isinstance(self.frequency, (int, float)) else self.frequency
-        freq_ratio = freq / 1e6
-        alpha_freq = alpha_np * (freq_ratio ** n_power)
+        # Convert alpha from dB/cm to Np/m
+        # FIX #8: Only return base attenuation (alpha_np), do NOT multiply by
+        # frequency factor here. The frequency-dependent attenuation is already
+        # applied inside AttenuationNet during message passing. Applying it both
+        # here AND in the MP layer causes double attenuation.
+        alpha_np = alpha_0 * 11.51  # dB/cm → Np/m (base attenuation only)
         
         return {
             'c': c,
             'rho': rho,
-            'alpha_0': alpha_freq,
+            'alpha_0': alpha_np,  # FIX #8: base attenuation only, no freq factor
             'n_power': n_power,
         }
 

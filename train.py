@@ -308,14 +308,18 @@ class Trainer:
                         hu, edge_index, edge_attr, node_props,
                         transducer_idx, positions, domain_size,
                     )
-                    
-                    # Compute losses
+                
+                # FIX #9: Compute physics loss OUTSIDE autocast (force float32)
+                # AMP with float16 + very small dt² values causes overflow/underflow
+                # in the wave equation residual computation.
+                with torch.cuda.amp.autocast(enabled=False):
                     physics_loss = self.model.compute_physics_loss()
-                    
+                
+                with autocast():
                     total_loss, loss_dict = self.criterion(
                         outputs['bmode'],
                         bmode_gt,
-                        physics_loss=physics_loss,
+                        physics_loss=physics_loss.float(),  # FIX #9: ensure float32
                         energy_history=outputs.get('energy_history'),
                     )
                 

@@ -19,18 +19,23 @@ from .components import NodeEncoder
 
 
 class BeamformDecoder(nn.Module):
-    """Converts final pressure field at transducer elements to B-mode image.
+    """Converts pressure time-series at transducer elements to B-mode image.
+    
+    FIX #5: Now uses full RF matrix (n_elements × n_time_steps) instead of
+    only the last time step. This is essential for beamforming — you need the
+    full time-domain signal to apply delays.
     
     Pipeline:
-      1. Extract pressure at transducer element positions
-      2. Delay-and-sum beamforming (differentiable)
-      3. Envelope detection (Hilbert transform approximation)
+      1. Extract pressure at transducer positions at ALL time steps → RF matrix
+      2. Learned beamforming (delay-and-sum approximation)
+      3. Envelope detection (learned)
       4. Log compression → B-mode image
     
     Args:
         n_elements: Number of transducer elements
         n_lines: Number of scanlines in output image
         n_samples: Number of depth samples per scanline
+        n_time_steps: Number of time steps in RF data
         hidden_dim: Hidden dimension for the decoder MLP
     """
     
@@ -39,31 +44,33 @@ class BeamformDecoder(nn.Module):
         n_elements: int = 128,
         n_lines: int = 256,
         n_samples: int = 512,
+        n_time_steps: int = 200,  # FIX #5: need time dimension
         hidden_dim: int = 128,
     ):
         super().__init__()
         self.n_elements = n_elements
         self.n_lines = n_lines
         self.n_samples = n_samples
+        self.n_time_steps = n_time_steps
         
-        # Pressure → RF lines decoder
-        self.pressure_decoder = nn.Sequential(
-            nn.Linear(1, hidden_dim),
+        # FIX #5: RF signal processor — operates on (n_elements, n_time_steps) matrix
+        # 1D conv along time axis for each element (shared weights)
+        self.rf_processor = nn.Sequential(
+            nn.Conv1d(n_elements, hidden_dim, kernel_size=7, padding=3),
             nn.SiLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.LayerNorm(hidden_dim),
+            nn.Conv1d(hidden_dim, hidden_dim, kernel_size=5, padding=2),
             nn.SiLU(),
-            nn.Linear(hidden_dim, 1),
         )
         
-        # Beamforming weights (learnable delays)
+        # FIX #5: Learned beamforming weights (approximates delay-and-sum)
+        # For each scanline, learn which element-time combinations to weight
         self.beamform_weights = nn.Parameter(
             torch.randn(n_lines, n_elements) * 0.01
         )
         
-        # RF → image decoder
-        self.image_decoder = nn.Sequential(
-            nn.Linear(n_elements, hidden_dim),
+        # FIX #5: Time-to-depth mapping (converts RF time samples to depth samples)
+        self.time_to_depth = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
             nn.SiLU(),
             nn.Linear(hidden_dim, n_samples),
         )
@@ -74,38 +81,59 @@ class BeamformDecoder(nn.Module):
     
     def forward(
         self,
-        p_final: torch.Tensor,       # (N, 1) full pressure field
+        all_pressures: list,           # FIX #5: list of (N, 1) at each time step
         transducer_idx: torch.Tensor,  # (M,) indices of transducer nodes
     ) -> torch.Tensor:
-        """Decode pressure to B-mode image.
+        """Decode pressure time-series to B-mode image.
+        
+        FIX #5: Uses full pressure history at transducer positions,
+        not just the final time step.
         
         Args:
-            p_final: (N, 1) final pressure field at all nodes
+            all_pressures: list of (N, 1) pressure fields at each time step
             transducer_idx: (M,) indices of transducer element nodes
         
         Returns:
             bmode: (n_lines, n_samples) B-mode image
         """
-        # Extract transducer pressures
-        p_trans = p_final[transducer_idx]  # (M, 1)
+        # FIX #5: Build RF matrix (n_elements, n_time_steps)
+        # Extract pressure at transducer positions for each time step
+        n_steps = len(all_pressures)
+        M = transducer_idx.shape[0]
         
-        # Decode pressure features
-        rf = self.pressure_decoder(p_trans)  # (M, 1)
-        rf = rf.squeeze(-1)  # (M,)
+        # Stack transducer pressures across time: (M, n_steps)
+        rf_signals = torch.stack([
+            p[transducer_idx].squeeze(-1) for p in all_pressures
+        ], dim=-1)  # (M, n_steps)
         
-        # Pad/truncate to n_elements
-        if rf.shape[0] < self.n_elements:
-            rf = F.pad(rf, (0, self.n_elements - rf.shape[0]))
+        # Pad/truncate elements to n_elements
+        if M < self.n_elements:
+            rf_signals = F.pad(rf_signals, (0, 0, 0, self.n_elements - M))
         else:
-            rf = rf[:self.n_elements]
+            rf_signals = rf_signals[:self.n_elements]
         
-        # Beamforming: weighted combination across elements
-        # beamform_weights: (n_lines, n_elements)
-        weights = F.softmax(self.beamform_weights, dim=-1)
-        rf_beamformed = weights @ rf  # (n_lines,)
+        # Pad/truncate time to expected n_time_steps
+        if n_steps < self.n_time_steps:
+            rf_signals = F.pad(rf_signals, (0, self.n_time_steps - n_steps))
+        else:
+            rf_signals = rf_signals[:, :self.n_time_steps]
         
-        # Generate depth samples per line
-        bmode = self.image_decoder(weights * rf.unsqueeze(0))  # (n_lines, n_samples)
+        # Process RF signals with 1D conv: (n_elements, n_time_steps) → (hidden, n_time_steps)
+        # Add batch dim for conv1d
+        rf_processed = self.rf_processor(rf_signals.unsqueeze(0))  # (1, hidden, T)
+        rf_processed = rf_processed.squeeze(0)  # (hidden, T)
+        
+        # Beamforming: weighted combination across elements for each scanline
+        weights = F.softmax(self.beamform_weights, dim=-1)  # (n_lines, n_elements)
+        
+        # Apply beamforming: for each line, weight the RF signals
+        # rf_signals: (n_elements, T), weights: (n_lines, n_elements)
+        rf_beamformed = weights @ rf_signals  # (n_lines, T)
+        
+        # Convert time samples to depth samples
+        bmode = self.time_to_depth(rf_processed.T.unsqueeze(0).expand(self.n_lines, -1, -1).mean(dim=1))
+        # Combine with beamformed signal
+        bmode = bmode + self.time_to_depth(rf_beamformed)
         
         # Envelope detection (absolute value as simple approximation)
         envelope = torch.abs(bmode)
@@ -190,6 +218,7 @@ class DPCGNNAcousticV2(nn.Module):
         nn.init.zeros_(self.p0_generator[-1].bias)
         
         # ── Wave propagation (k-Wave-inspired MP stack) ──
+        # FIX #1: share_weights=True for 200 time steps
         self.propagator = KWaveInspiredMPStack(
             n_steps=n_mp_steps,
             hidden_dim=hidden_dim,
@@ -197,17 +226,19 @@ class DPCGNNAcousticV2(nn.Module):
             n_heads=n_heads,
             frequency=frequency,
             dt=dt,
-            share_weights=share_mp_weights,
+            share_weights=True if n_mp_steps > 50 else share_mp_weights,  # FIX #1
             use_dispersion=use_dispersion,
             use_attenuation=use_attenuation,
             use_pml=use_pml,
         )
         
         # ── Beamform decoder ──
+        # FIX #5: pass n_time_steps for RF matrix construction
         self.decoder = BeamformDecoder(
             n_elements=n_elements,
             n_lines=image_size // 2,
             n_samples=image_size,
+            n_time_steps=n_mp_steps + 1,  # FIX #5: +1 for initial p0
             hidden_dim=hidden_dim,
         )
     
@@ -272,19 +303,22 @@ class DPCGNNAcousticV2(nn.Module):
         p0 = p0 * transducer_mask  # Only excite at transducer
         
         # ── Propagate ──
-        p_final = self.propagator(
+        # FIX #5: propagator now returns (p_final, all_pressures)
+        p_final, all_pressures = self.propagator(
             p0, edge_index, edge_attr,
             node_props, positions, domain_size,
         )
         
         # ── Decode to B-mode ──
-        bmode = self.decoder(p_final, transducer_idx)
+        # FIX #5: pass full pressure history for RF matrix construction
+        bmode = self.decoder(all_pressures, transducer_idx)
         
         return {
             'bmode': bmode,
             'pressure_field': p_final,
             'initial_pressure': p0,
             'energy_history': self.propagator.energy_history,
+            'all_pressures': all_pressures,  # FIX #5: for external use
         }
     
     def compute_physics_loss(self) -> torch.Tensor:
@@ -332,7 +366,8 @@ def create_model(config: dict, device: str = 'cpu') -> DPCGNNAcousticV2:
     
     model = DPCGNNAcousticV2(
         hidden_dim=model_cfg.get('hidden_dim', 128),
-        n_mp_steps=model_cfg.get('n_mp_layers', 12),
+        # FIX #1: Use n_time_steps from physics config (200) instead of n_mp_layers (12)
+        n_mp_steps=physics_cfg.get('n_time_steps', model_cfg.get('n_mp_layers', 200)),
         edge_dim=7,  # [r_vec(2), distance(1), Z_ratio(1), c_ratio(1), alpha_avg(1), n_avg(1)]
         n_heads=model_cfg.get('n_heads', 4),
         frequency=physics_cfg.get('frequency', 5e6),
