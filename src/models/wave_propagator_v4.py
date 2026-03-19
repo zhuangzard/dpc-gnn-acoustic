@@ -56,9 +56,12 @@ class AcousticLeapfrogV4(nn.Module):
         sensor_x = torch.linspace(pml_width, nx - pml_width - 1, n_elements).long()
         self.register_buffer('sensor_x', sensor_x)
 
-        # --- Source injection position: centre of top row ---
+        # --- Source injection position: centre, just inside top PML ---
         self.source_x = nx // 2
         self.source_y = pml_width + 2  # just inside PML boundary
+
+        # --- Sensor extraction row: bottom of domain, just inside bottom PML ---
+        self.sensor_y = ny - pml_width - 2  # sensors far from source!
 
     def _build_pml_profile(self, nx: int, ny: int, width: int) -> torch.Tensor:
         """
@@ -116,9 +119,9 @@ class AcousticLeapfrogV4(nn.Module):
 
         # Source term: inject at source position, modulated by reflectivity
         source_term = torch.zeros_like(p_curr)
-        B = p_curr.size(0)
-        for b in range(B):
-            source_term[b, 0, self.source_y, self.source_x] = source_val[b] * sigma[b, 0, self.source_y, self.source_x]
+        source_term[:, 0, self.source_y, self.source_x] = (
+            source_val * sigma[:, 0, self.source_y, self.source_x]
+        )
 
         # Leapfrog update
         p_next = (2.0 * p_curr - coeff_prev * p_prev + dt2 * (c * c * lap_p + source_term)) / denom
@@ -135,8 +138,8 @@ class AcousticLeapfrogV4(nn.Module):
         for i in range(chunk_len):
             p_next = self._single_step(p_curr, p_prev, c, alpha, sigma,
                                         source_chunk[:, i])
-            # Extract sensor data at y=0 (top row, after PML)
-            sensor_row = p_next[:, 0, self.source_y, :]  # [B, nx]
+            # Extract sensor data at bottom row (far from source)
+            sensor_row = p_next[:, 0, self.sensor_y, :]  # [B, nx]
             sensor_data = sensor_row[:, self.sensor_x]  # [B, n_elements]
             sensor_list.append(sensor_data)
 

@@ -111,23 +111,27 @@ class DifferentiableBeamformerV4(nn.Module):
         delay_floor_flat = delay_floor.reshape(-1, E)  # [H*W, E]
         delay_frac_flat = delay_frac.reshape(-1, E)    # [H*W, E]
 
-        rf_image = torch.zeros(B, H * W, device=sensor_data.device, dtype=sensor_data.dtype)
+        # Vectorized DAS: no Python loop over elements
+        # idx_lo/hi: [H*W, E], sensor_data: [B, E, n_samples]
+        idx_lo = delay_floor_flat  # [H*W, E]
+        idx_hi = (idx_lo + 1).clamp(max=n_samples - 1)
+        frac = delay_frac_flat  # [H*W, E]
 
-        for e in range(E):
-            idx_lo = delay_floor_flat[:, e]  # [H*W]
-            idx_hi = (idx_lo + 1).clamp(max=n_samples - 1)
-            frac = delay_frac_flat[:, e]     # [H*W]
+        HW, E2 = idx_lo.shape
+        # Flatten sensor_data to [B*E, n_samples] for gather
+        sd_flat = sensor_data.reshape(B * E2, n_samples)
 
-            # Gather samples for this element across all pixels
-            # sensor_data[:, e, :] is [B, n_samples]
-            val_lo = sensor_data[:, e, :][:, idx_lo]  # [B, H*W]
-            val_hi = sensor_data[:, e, :][:, idx_hi]  # [B, H*W]
+        # Build gather indices: for each (element, pixel) pair
+        # idx_lo.t() -> [E, H*W], expand for batch -> [B, E, H*W] -> [B*E, H*W]
+        idx_lo_t = idx_lo.t().unsqueeze(0).expand(B, -1, -1).reshape(B * E2, HW)
+        idx_hi_t = idx_hi.t().unsqueeze(0).expand(B, -1, -1).reshape(B * E2, HW)
 
-            # Linear interpolation
-            val = val_lo * (1.0 - frac.unsqueeze(0)) + val_hi * frac.unsqueeze(0)
-            rf_image = rf_image + val
+        val_lo = torch.gather(sd_flat, 1, idx_lo_t).reshape(B, E2, HW)
+        val_hi = torch.gather(sd_flat, 1, idx_hi_t).reshape(B, E2, HW)
 
-        rf_image = rf_image.reshape(B, H, W)
+        frac_t = frac.t().unsqueeze(0).expand(B, -1, -1)  # [B, E, H*W]
+        val = val_lo * (1.0 - frac_t) + val_hi * frac_t
+        rf_image = val.sum(dim=1).reshape(B, H, W)  # sum over elements
         return rf_image
 
     def _hilbert_envelope(self, rf: torch.Tensor) -> torch.Tensor:
