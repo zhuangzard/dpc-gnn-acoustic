@@ -26,11 +26,14 @@ from .beamform_decoder_v4 import DifferentiableBeamformerV4
 # ---------------------------------------------------------------------------
 def hu_to_speed_of_sound(ct_hu: torch.Tensor, c_min: float = 1400.0, c_max: float = 1700.0) -> torch.Tensor:
     """
-    Convert CT Hounsfield units to speed-of-sound via piecewise-linear model.
-    Assumes CT input normalised to [0, 1] where 0→air/soft-tissue, 1→dense bone.
-    Returns c_table in [c_min, c_max] m/s.
+    Convert normalised CT input to speed-of-sound via affine mapping.
+    CT data may be actual speed-of-sound values (normalised to [0,1]).
+    Maps [0, 1] → [c_min, c_max] m/s.
+    
+    For uniform phantoms (ct_hu ≈ constant after normalisation), the GNN residual
+    provides all spatial variation. For structured phantoms, ct_hu provides the prior.
     """
-    # Simple affine mapping: treat normalised CT as linear proxy
+    # Affine mapping: [0, 1] → [c_min, c_max]
     c_table = ct_hu * (c_max - c_min) + c_min
     return c_table
 
@@ -195,8 +198,8 @@ class GNNEncoder(nn.Module):
 
         # --- Physics prior for speed-of-sound ---
         c_table = hu_to_speed_of_sound(ct, self.c_min, self.c_max)  # [B, 1, 256, 256]
-        # c_residual scaled to ±50 m/s
-        c = c_table + torch.tanh(c_residual) * 50.0
+        # c_residual scaled to ±150 m/s (full range coverage for uniform phantoms)
+        c = c_table + torch.tanh(c_residual) * 150.0
         c = c.clamp(self.c_min, self.c_max)
 
         # --- Activation for attenuation ---

@@ -84,12 +84,12 @@ class KWaveDataset(Dataset):
         if ct.ndim == 2:
             ct = ct[np.newaxis, :, :]  # [1, H, W]
 
-        # Normalise CT to [0, 1]
-        ct_min, ct_max = ct.min(), ct.max()
-        if ct_max - ct_min > 1e-8:
-            ct = (ct - ct_min) / (ct_max - ct_min)
-        else:
-            ct = np.zeros_like(ct)
+        # Normalise CT to [0, 1] using global range (handles uniform phantoms)
+        # CT data contains speed-of-sound values (~20-1700 m/s range)
+        # Use fixed global range instead of per-sample min/max
+        ct_global_min, ct_global_max = 0.0, 400.0  # covers k-Wave GT data range
+        ct = (ct - ct_global_min) / (ct_global_max - ct_global_min)
+        ct = np.clip(ct, 0.0, 1.0)
 
         # Resize if needed
         ct = torch.from_numpy(ct)

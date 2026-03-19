@@ -60,10 +60,10 @@ class AcousticLeapfrogV4(nn.Module):
         self.source_x = nx // 2
         self.source_y = pml_width + 2  # just inside PML boundary
 
-        # --- Sensor extraction row: close to source but far enough for wave propagation ---
-        # 200 steps × dt=2e-8 × c≈1500 = 6mm ≈ 25 grid points
-        # Source at y=22, sensor at y=45 → 23 grid points ≈ 5.4mm → reachable in 200 steps
-        self.sensor_y = pml_width + 25  # y=45, ~23 grid points from source
+        # --- Sensor extraction row: SAME SIDE as source (pulse-echo ultrasound) ---
+        # Real B-mode: source fires down, wave reflects off tissue, returns to top
+        # Sensor at top row (just inside PML), same as source side
+        self.sensor_y = pml_width  # y=20, top row sensors receive reflected waves
 
     def _build_pml_profile(self, nx: int, ny: int, width: int) -> torch.Tensor:
         """
