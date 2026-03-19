@@ -215,7 +215,7 @@ def train(config: dict, resume_path: str = None):
     if resume_path and os.path.exists(resume_path):
         print(f"Resuming from {resume_path}")
         ckpt = torch.load(resume_path, map_location=device, weights_only=False)
-        model.load_state_dict(ckpt['model_state_dict'])
+        model.load_state_dict(ckpt['model_state_dict'], strict=False)
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_epoch = ckpt.get('epoch', 0) + 1
         best_val_loss = ckpt.get('best_val_loss', float('inf'))
