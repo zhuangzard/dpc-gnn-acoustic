@@ -329,13 +329,20 @@ def create_dataloader(
     """
     dataset = KWaveDataset(data_dir, split=split, **kwargs)
     
+    # Custom collate_fn to remove batch dimension [1, ...] -> [...]
+    def collate_fn(batch):
+        if len(batch) == 1:
+            return batch[0]  # Return single sample directly
+        # For batch_size > 1, use default collate
+        return torch.utils.data.default_collate(batch)
+    
     return DataLoader(
         dataset,
         batch_size=batch_size,
         shuffle=(split == 'train'),
         num_workers=num_workers,
         pin_memory=True,
-        collate_fn=_collate_fn if batch_size > 1 else None,
+        collate_fn=collate_fn,
     )
 
 
