@@ -303,7 +303,7 @@ class DPCGNNAcousticV4(nn.Module):
 
         # Normalise to unit amplitude, then scale to physical pressure (~1 MPa)
         wavelet = wavelet / (wavelet.abs().max() + 1e-12)
-        wavelet = wavelet * 1e6  # Scale to ~1 MPa (typical ultrasound source pressure)
+        wavelet = wavelet * 1e10  # Scale source to overcome dt²=4e-16 damping
         return wavelet.unsqueeze(0).expand(batch_size, -1)  # [B, n_steps]
 
     def count_parameters(self) -> dict:
