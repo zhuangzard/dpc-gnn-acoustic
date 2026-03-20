@@ -29,6 +29,8 @@ class DifferentiableBeamformerV4(nn.Module):
                  image_size: tuple = (128, 128),
                  dx: float = 2.34e-4, dt: float = 2.0e-8,
                  grid_size: int = 256, pml_size: int = 20,
+                 # GT physical coordinates (from 128-grid k-Wave)
+                 gt_dx: float = 4.69e-4, gt_grid_size: int = 128, gt_pml: int = 20,
                  eps: float = 1e-6):
         super().__init__()
         self.n_elements = n_elements
@@ -38,6 +40,10 @@ class DifferentiableBeamformerV4(nn.Module):
         self.dt = dt
         self.grid_size = grid_size
         self.pml_size = pml_size
+        # Store GT physical params for pixel grid alignment
+        self.gt_dx = gt_dx
+        self.gt_grid_size = gt_grid_size
+        self.gt_pml = gt_pml
         self.eps = eps
 
         # Pre-compute pixel-to-element delay indices
@@ -56,34 +62,33 @@ class DifferentiableBeamformerV4(nn.Module):
         Elements are along y=0 (top row), uniformly spaced.
         """
         # Physical extent of imaging region
-        # Matches GT's regenerate_gt_bmode.py coordinate convention exactly
-        pml = self.pml_size
-        G = self.grid_size  # 256 for V4 training grid
+        # Use GT's physical coordinates (128-grid) so beamformer output
+        # aligns with GT B-mode images pixel-for-pixel
+        gt_dx = self.gt_dx
+        gt_G = self.gt_grid_size
+        gt_pml = self.gt_pml
         
-        # Sensor row in simulation grid (k-Wave convention)
-        sensor_row = pml + 1
+        # Sensor row in GT grid (k-Wave convention)
+        sensor_row = gt_pml + 1  # row 21 in 128-grid
         
-        # Element lateral positions (k-Wave col direction)
-        # k-Wave: smask[sensor_row, start_col:start_col+n_elem]
-        active_width = G - 2 * pml  # lateral active region in grid points
+        # Element lateral positions (GT's k-Wave col direction)
+        active_width = gt_G - 2 * gt_pml  # 88
         n_elem_actual = min(self.n_elements, active_width)
-        start_col = (G - n_elem_actual) // 2
+        start_col = (gt_G - n_elem_actual) // 2  # 20
         
-        elem_lateral = torch.linspace(start_col * self.dx,
-                                       (start_col + n_elem_actual - 1) * self.dx,
+        elem_lateral = torch.linspace(start_col * gt_dx,
+                                       (start_col + n_elem_actual - 1) * gt_dx,
                                        self.n_elements, device=device, dtype=dtype)
-        # Element axial position = sensor depth (NOT zero!)
-        elem_axial = torch.full((self.n_elements,), sensor_row * self.dx,
+        # Element axial position = sensor depth
+        elem_axial = torch.full((self.n_elements,), sensor_row * gt_dx,
                                 device=device, dtype=dtype)
 
-        # Pixel positions — must match GT exactly
-        # Lateral: same as element range
-        px = torch.linspace(start_col * self.dx,
-                             (start_col + n_elem_actual - 1) * self.dx,
+        # Pixel positions — match GT exactly (128-grid physical coordinates)
+        px = torch.linspace(start_col * gt_dx,
+                             (start_col + n_elem_actual - 1) * gt_dx,
                              self.image_w, device=device, dtype=dtype)
-        # Axial: from sensor depth to bottom of active region
-        axial_start = sensor_row * self.dx
-        axial_end = (G - pml) * self.dx
+        axial_start = sensor_row * gt_dx
+        axial_end = (gt_G - gt_pml) * gt_dx
         py = torch.linspace(axial_start, axial_end,
                              self.image_h, device=device, dtype=dtype)
 
@@ -96,8 +101,12 @@ class DifferentiableBeamformerV4(nn.Module):
         dist_y = grid_y.unsqueeze(-1) - elem_axial.reshape(1, 1, -1)
         distance = torch.sqrt(dist_x ** 2 + dist_y ** 2 + 1e-12)
 
-        # Convert to sample index (delay in samples)
-        delay_samples = distance / (self.c_ref * self.dt)
+        # Plane-wave transmit + per-element receive (pulse-echo)
+        # TX: plane wave → delay = d_axial / c (same for all elements)
+        # RX: scattered wave → delay = dist(pixel, element) / c
+        # Total = d_axial/c + dist/c
+        d_axial = (grid_y - elem_axial.reshape(1, 1, -1)).abs()
+        delay_samples = (d_axial + distance) / (self.c_ref * self.dt)
 
         # Clamp to valid range
         delay_samples = delay_samples.clamp(0, n_samples - 2)

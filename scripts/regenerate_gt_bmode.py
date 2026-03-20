@@ -51,7 +51,9 @@ def das_beamform_numpy(sensor_data, metadata, output_size=128, c_ref=1540.0):
     
     # Determine scenario for delay model
     scenario = metadata.get('scenario', 'A_homogeneous_point')
-    is_pulse_echo = not scenario.startswith('A')  # B/C are pulse-echo
+    if scenario.startswith('A'):
+        return None  # Skip Scenario A — not pulse-echo, incompatible with V4
+    is_pulse_echo = True  # Only B/C reach here, always pulse-echo
     
     # Compute dt from k-Wave: dt = kgrid.dt (stored in metadata)
     if dt_sim is None:
@@ -96,13 +98,12 @@ def das_beamform_numpy(sensor_data, metadata, output_size=128, c_ref=1540.0):
         d_axial = grid_axial - elem_axial
         dist = np.sqrt(d_lateral**2 + d_axial**2 + 1e-12)
         
-        if is_pulse_echo:
-            # Scenario B/C: round-trip (source=sensor, same position)
-            # Total time = TX (source→target) + RX (target→sensor) = 2×dist
-            delay_samples = 2.0 * dist / (c_ref * dt_sim)
-        else:
-            # Scenario A: p0 initial pressure, one-way (target→sensor)
-            delay_samples = dist / (c_ref * dt_sim)
+        # Plane-wave transmit + per-element receive (pulse-echo)
+        # TX: all elements fire simultaneously → plane wave → TX delay = d_axial / c
+        # RX: scattered wave travels from pixel to this element → RX delay = dist / c
+        # Total = d_axial/c + dist/c
+        d_axial_abs = np.abs(grid_axial - elem_axial)
+        delay_samples = (d_axial_abs + dist) / (c_ref * dt_sim)
         
         # Clamp to valid range
         delay_samples = np.clip(delay_samples, 0, n_samples - 2)
@@ -157,8 +158,21 @@ def process_sample(sample_dir, output_size=128, c_ref=1540.0, backup=True):
         if not backup_path.exists():
             os.rename(str(bmode_path), str(backup_path))
     
-    # Generate new DAS B-mode
+    # Generate new DAS B-mode (returns None for Scenario A)
     bmode = das_beamform_numpy(sensor_data, metadata, output_size, c_ref)
+    
+    if bmode is None:
+        # Scenario A — remove from dataset (incompatible with pulse-echo)
+        for f in ['ct_slice.npy', 'bmode_gt.npy', 'sensor_data.npy', 'metadata.json',
+                   'bmode_gt_old_sensor_domain.npy']:
+            p = sample_dir / f
+            if p.exists():
+                os.remove(str(p))
+        try:
+            os.rmdir(str(sample_dir))
+        except OSError:
+            pass
+        return 'skip_A'
     
     # Save
     np.save(str(bmode_path), bmode)
@@ -189,23 +203,27 @@ def main():
     
     n_ok = 0
     n_fail = 0
+    n_skip = 0
     
     for i, sample_dir in enumerate(samples):
-        ok = process_sample(sample_dir, args.output_size, args.c_ref, 
+        result = process_sample(sample_dir, args.output_size, args.c_ref, 
                            backup=not args.no_backup)
-        if ok:
+        if result == 'skip_A':
+            n_skip += 1
+            if (i + 1) % 10 == 0 or i == 0:
+                print(f"  [{i+1}/{len(samples)}] {sample_dir.name}: REMOVED (Scenario A)")
+        elif result:
             n_ok += 1
             if (i + 1) % 10 == 0 or i == 0:
-                # Quick check
                 bmode = np.load(str(sample_dir / 'bmode_gt.npy'))
                 print(f"  [{i+1}/{len(samples)}] {sample_dir.name}: "
                       f"shape={bmode.shape}, range=[{bmode.min():.4f}, {bmode.max():.4f}]")
         else:
             n_fail += 1
     
-    print(f"\nDone: {n_ok} OK, {n_fail} failed")
+    print(f"\nDone: {n_ok} OK, {n_skip} Scenario A removed, {n_fail} failed")
     print(f"New bmode_gt.npy shape: ({args.output_size}, {args.output_size})")
-    print("Old GT backed up as bmode_gt_old_sensor_domain.npy")
+    print("Only Scenario B/C retained (pulse-echo, plane-wave TX delay)")
 
 
 if __name__ == '__main__':
