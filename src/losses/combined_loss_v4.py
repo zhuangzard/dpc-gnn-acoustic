@@ -114,6 +114,11 @@ class DPCGNNAcousticLossV4(nn.Module):
         else:
             loss = l1_loss + ssim_loss
 
+        # α regularization: prevent α explosion → degenerate solution
+        if model_outputs is not None and 'alpha' in model_outputs:
+            alpha_reg = 1e-3 * model_outputs['alpha'].pow(2).mean()
+            loss = loss + alpha_reg
+
         # --- Monitoring metrics (no gradient!) ---
         metrics = {
             'l1': l1_loss.item(),
