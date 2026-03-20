@@ -25,7 +25,7 @@ training:
   epochs: 200
   lr: 1.0e-4              # AdamW learning rate
   weight_decay: 1.0e-5    # AdamW weight decay
-  batch_size: 8           # Batch size (RTX 5090 32GB, only 20% used at batch=4)
+  batch_size: 16          # Batch size (RTX 5090 32GB, 11.7GB used at batch=8)
   warmup_epochs: 5        # Linear warmup epochs
   patience: 30            # Early stopping patience
   grad_clip: 1.0          # Gradient clipping max norm
