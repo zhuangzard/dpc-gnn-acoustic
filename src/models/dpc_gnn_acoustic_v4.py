@@ -24,7 +24,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .wave_propagator_v4 import AcousticLeapfrogV4
+from .wave_propagator_v5 import AcousticPropagatorV5
 from .beamform_decoder_v4 import DifferentiableBeamformerV4
 
 
@@ -262,15 +262,20 @@ class DPCGNNAcousticV4(nn.Module):
             antisymmetric=model_cfg.get('antisymmetric', True),
         )
 
-        # --- Deterministic Leapfrog Propagator (no learnable params) ---
-        self.propagator = AcousticLeapfrogV4(
+        # --- V5 Velocity-Pressure Propagator (no learnable params) ---
+        # k-Wave compatible: staggered grid, split-field PML, per-axis kappa
+        self.propagator = AcousticPropagatorV5(
             nx=grid_size,
             ny=grid_size,
             dx=dx,
             dt=dt,
-            n_steps=physics_cfg.get('n_time_steps', 200),
             pml_width=pml_width,
+            n_elements=128,
+            c_ref=physics_cfg.get('c_ref', 2000.0),
+            checkpoint_every=physics_cfg.get('checkpoint_every', 200),
         )
+        # Store n_steps for source generation
+        self._n_time_steps = physics_cfg.get('n_time_steps', 1950)
 
         # --- Deterministic DAS Beamformer (no learnable params) ---
         # Element positions in V4 coordinates, pixel grid aligned to GT FOV
@@ -310,8 +315,11 @@ class DPCGNNAcousticV4(nn.Module):
         if source is None:
             source = self._default_source(ct.device, ct.size(0))
 
-        # 3. Leapfrog propagation: (c, α, source) → sensor data
-        sensor_data = self.propagator(c, alpha, source)
+        # 3. V5 propagation: (c, α, source) → sensor data
+        # V5 expects [B, nx, ny] (no channel dim), V4 encoder outputs [B, 1, nx, ny]
+        sensor_data = self.propagator(
+            c.squeeze(1), alpha.squeeze(1), source
+        )
 
         # 4. DAS beamforming: sensor data → B-mode image
         bmode = self.beamformer(sensor_data)
@@ -329,7 +337,7 @@ class DPCGNNAcousticV4(nn.Module):
         GT uses: 2 MHz, 3-cycle Gaussian-windowed sine burst.
         Must match generate_kwave_gt.py::make_tone_burst().
         """
-        n_steps = self.propagator.n_steps
+        n_steps = self._n_time_steps
         dt = self.propagator.dt
         f0 = 2.0e6  # 2 MHz — matches GT
         n_cycles = 3  # 3 cycles — matches GT
