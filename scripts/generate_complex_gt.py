@@ -23,6 +23,7 @@ from kwave.ksource import kSource
 from kwave.ksensor import kSensor
 from kwave.kmedium import kWaveMedium
 from kwave.options.simulation_options import SimulationOptions
+from kwave.options.simulation_execution_options import SimulationExecutionOptions
 from kwave.kspaceFirstOrder2D import kspaceFirstOrder2DC
 
 # Constants (match generate_kwave_gt.py)
@@ -95,20 +96,22 @@ def run_sim(c_map, rho_map, source):
     sensor.mask = smask
 
     sim_options = SimulationOptions(
-        pml_size=PML_SIZE,
+        pml_size=[PML_SIZE, PML_SIZE],
+        smooth_p0=False,
+        smooth_c0=False, smooth_rho0=False,
         save_to_disk=True,
         data_cast='single',
+    )
+    exec_options = SimulationExecutionOptions(
+        is_gpu_simulation=False, delete_data=True,
+        show_sim_log=False, num_threads=32,
     )
 
     # If source doesn't have p_mask yet (for p0 sources), set Nt
     if not hasattr(source, 'p_mask') or source.p_mask is None:
         kgrid.setTime(Nt, dt)
 
-    result = kspaceFirstOrder2DC(
-        kgrid=kgrid, medium=medium, source=source, sensor=sensor,
-        simulation_options=sim_options,
-        execution_options=None,
-    )
+    result = kspaceFirstOrder2DC(kgrid, source, sensor, medium, sim_options, exec_options)
     p = np.array(result["p"]).T
     return p, {"Nt": Nt, "dt": dt, "n_sensors": int(p.shape[0])}
 
