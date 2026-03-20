@@ -91,10 +91,17 @@ def main():
         )
 
         # Test 2: k-Wave sensor → V4 beamformer (isolate beamformer difference)
-        # NOTE: V4 beamformer uses dt=2e-8 for delay, but k-Wave sensor has dt~4e-8
-        kw_t = torch.from_numpy(kwave_sensor).float().unsqueeze(0).cuda()
+        # IMPORTANT: V4 beamformer uses dt=2e-8 for delay computation,
+        # but k-Wave sensor_data was sampled at dt_kw ~ 4e-8.
+        # We need a beamformer with the CORRECT dt for k-Wave data.
+        bf_kw = DifferentiableBeamformerV4(
+            n_elements=128, c_ref=1540.0, image_size=(128, 128),
+            dx=2.34e-4, dt=meta["dt"],  # Use k-Wave's actual dt!
+            grid_size=256, pml_size=20
+        ).cpu()
+        kw_t = torch.from_numpy(kwave_sensor).float().unsqueeze(0)
         with torch.no_grad():
-            bmode_2_t = bf_v4(kw_t)
+            bmode_2_t = bf_kw(kw_t)
         bmode_2 = bmode_2_t.squeeze().cpu().numpy()
         ssim_2 = structural_similarity(
             gt_bmode, bmode_2,
