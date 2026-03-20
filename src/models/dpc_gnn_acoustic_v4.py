@@ -323,19 +323,34 @@ class DPCGNNAcousticV4(nn.Module):
         }
 
     def _default_source(self, device: torch.device, batch_size: int) -> torch.Tensor:
-        """Generate a default ultrasound pulse (Ricker wavelet, 5 MHz)."""
+        """
+        Generate tone burst matching k-Wave GT source exactly.
+        GT uses: 2 MHz, 3-cycle Gaussian-windowed sine burst.
+        Must match generate_kwave_gt.py::make_tone_burst().
+        """
         n_steps = self.propagator.n_steps
         dt = self.propagator.dt
-        f0 = 5.0e6
+        f0 = 2.0e6  # 2 MHz — matches GT
+        n_cycles = 3  # 3 cycles — matches GT
 
         t = torch.arange(n_steps, device=device, dtype=torch.float32) * dt
-        t0 = 1.5 / f0
-        arg = (math.pi * f0 * (t - t0)) ** 2
-        wavelet = (1.0 - 2.0 * arg) * torch.exp(-arg)
+        burst_len = n_cycles / f0  # 1.5 μs
 
-        wavelet = wavelet / (wavelet.abs().max() + 1e-12)
-        wavelet = wavelet * 1e10  # Scale to overcome dt²=4e-16
-        return wavelet.unsqueeze(0).expand(batch_size, -1)
+        # Gaussian-windowed sine burst (same as GT)
+        signal = torch.zeros(n_steps, device=device, dtype=torch.float32)
+        burst_mask = t < burst_len
+        n_burst = burst_mask.sum().item()
+        if n_burst > 0:
+            tw = t[:n_burst]
+            center = burst_len / 2.0
+            sigma = burst_len / 6.0
+            window = torch.exp(-0.5 * ((tw - center) / sigma) ** 2)
+            sine = torch.sin(2.0 * math.pi * f0 * tw)
+            signal[:n_burst] = sine * window
+
+        signal = signal / (signal.abs().max() + 1e-12)
+        signal = signal * 1e10  # Scale to overcome dt²=4e-16
+        return signal.unsqueeze(0).expand(batch_size, -1)
 
     def count_parameters(self) -> dict:
         """Count learnable parameters by component."""
