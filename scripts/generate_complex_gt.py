@@ -71,7 +71,13 @@ def make_array_source(Nt, dt):
     source.p_mask = smask
     n_active = int(smask.sum())
     signal = make_tone_burst(FREQ, N_CYCLES, dt, Nt)
-    source.p = np.tile(signal, (n_active, 1))
+    # CRITICAL: Only provide burst-length signal, NOT zero-padded to Nt!
+    # Dirichlet mode: source.p=0 means SET pressure to 0 (not "no injection").
+    # If padded to Nt, echoes arriving at source row get zeroed out.
+    # k-Wave stops Dirichlet injection after source.p ends.
+    burst_steps = int(np.ceil(N_CYCLES / FREQ / dt)) + 1
+    signal_trimmed = signal[:burst_steps]
+    source.p = np.tile(signal_trimmed, (n_active, 1))
     source.p_mode = "dirichlet"
     return source
 
