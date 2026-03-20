@@ -99,7 +99,7 @@ class DPCGNNAcousticLossV4(nn.Module):
         Args:
             pred_bmode: [B, 1, H, W] predicted B-mode
             gt_bmode: [B, 1, H, W] ground truth B-mode
-            model_outputs: dict with 'c', 'alpha', 'sigma', 'sensor_data' for monitoring
+            model_outputs: dict with 'c', 'alpha', 'sensor_data' for monitoring
         Returns:
             loss: scalar training loss
             metrics: dict of monitoring metrics
@@ -126,7 +126,6 @@ class DPCGNNAcousticLossV4(nn.Module):
             with torch.no_grad():
                 c = model_outputs.get('c')
                 alpha = model_outputs.get('alpha')
-                sigma = model_outputs.get('sigma')
                 sensor_data = model_outputs.get('sensor_data')
 
                 if c is not None:
@@ -138,9 +137,6 @@ class DPCGNNAcousticLossV4(nn.Module):
                 if alpha is not None:
                     metrics['alpha_mean'] = alpha.mean().item()
                     metrics['alpha_max'] = alpha.max().item()
-
-                if sigma is not None:
-                    metrics['sigma_mean'] = sigma.mean().item()
 
                 if sensor_data is not None:
                     # Energy ratio: compare energy at start vs end of signal
@@ -174,7 +170,7 @@ if __name__ == '__main__':
     model_out = {
         'c': torch.ones(2, 1, 256, 256) * 1540 + torch.randn(2, 1, 256, 256) * 20,
         'alpha': torch.rand(2, 1, 256, 256) * 5,
-        'sigma': torch.rand(2, 1, 256, 256),
+
         'sensor_data': torch.randn(2, 128, 200),
     }
 

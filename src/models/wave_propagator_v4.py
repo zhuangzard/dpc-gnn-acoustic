@@ -1,15 +1,19 @@
 """
 DPC-GNN-Acoustic V4: Deterministic Leapfrog Wave Propagator
 
-2D acoustic wave equation with attenuation and reflectivity:
-    p^{n+1} = (2p^n - (1-αΔt/2)p^{n-1} + Δt²(c²∇²p + σf)) / (1+αΔt/2)
+2D acoustic wave equation with scattering:
+    p^{n+1} = (2p^n - (1-σ_total·Δt/2)·p^{n-1} + Δt²·c²·∇²p + Δt²·f_source) / (1+σ_total·Δt/2)
+
+where σ_total = α (physical attenuation) + σ_pml (PML damping)
+
+Source injection is independent of σ — σ controls scattering/attenuation throughout the medium.
 
 Features:
   - NO learnable parameters (pure physics)
-  - PML absorbing boundary (20 cells, cubic polynomial decay)
+  - PML absorbing boundary (20 cells, cubic polynomial decay, physically correct σ_max)
   - Laplacian via F.conv2d (2nd-order accuracy)
-  - Gradient checkpointing every 20 steps
-  - Sensor extraction at y=0 row
+  - Gradient checkpointing every 50 steps
+  - Source and sensor at SAME ROW (pulse-echo ultrasound)
   - CFL stability check
 """
 
@@ -41,48 +45,45 @@ class AcousticLeapfrogV4(nn.Module):
         self.checkpoint_every = checkpoint_every
 
         # --- Laplacian kernel (2nd-order finite difference) ---
-        # ∇²p ≈ (p[i+1,j] + p[i-1,j] + p[i,j+1] + p[i,j-1] - 4p[i,j]) / dx²
         lap_kernel = torch.tensor([[0., 1., 0.],
                                     [1., -4., 1.],
                                     [0., 1., 0.]], dtype=torch.float32) / (dx * dx)
-        # Shape for F.conv2d: [out_ch, in_ch, kH, kW]
         self.register_buffer('lap_kernel', lap_kernel.reshape(1, 1, 3, 3))
 
         # --- PML damping profile ---
-        pml_profile = self._build_pml_profile(nx, ny, pml_width)
+        # sigma_max in units matching the wave equation damping term
+        # For effective absorption: sigma_max ~ c_max / (pml_width * dx) * scaling
+        # With c_max=1700, pml=20, dx=2.34e-4: sigma_max ~ 1700/(20*2.34e-4)*3 ≈ 1.09e6
+        sigma_max = 1700.0 / (pml_width * dx) * 3.0  # ~1.09e6 for effective PML
+        pml_profile = self._build_pml_profile(nx, ny, pml_width, sigma_max)
         self.register_buffer('pml_damping', pml_profile)
 
-        # --- Sensor positions: uniformly spaced along y=0 ---
+        # --- Source AND Sensor at the SAME ROW (pulse-echo) ---
+        # k-Wave uses PML_SIZE + 1 for both source and sensor
+        self.transducer_row = pml_width + 1  # row 21
+
+        # --- Sensor/source lateral positions: uniformly spaced ---
         sensor_x = torch.linspace(pml_width, nx - pml_width - 1, n_elements).long()
         self.register_buffer('sensor_x', sensor_x)
 
-        # --- Source injection position: centre, just inside top PML ---
-        self.source_x = nx // 2
-        self.source_y = pml_width + 2  # just inside PML boundary
+        # --- Source: ALL elements fire simultaneously (plane wave) ---
+        # Source covers the full active aperture, same positions as sensors
+        self.register_buffer('source_x', sensor_x)  # same lateral positions
 
-        # --- Sensor extraction row: SAME SIDE as source (pulse-echo ultrasound) ---
-        # Real B-mode: source fires down, wave reflects off tissue, returns to top
-        # Sensor at top row (just inside PML), same as source side
-        self.sensor_y = pml_width  # y=20, top row sensors receive reflected waves
-
-    def _build_pml_profile(self, nx: int, ny: int, width: int) -> torch.Tensor:
+    def _build_pml_profile(self, nx: int, ny: int, width: int,
+                            sigma_max: float) -> torch.Tensor:
         """
         Build 2D PML damping coefficient field.
         Cubic polynomial decay: σ_pml(d) = σ_max * (d/width)^3
         """
-        sigma_max = 3.0  # maximum damping
         damping = torch.zeros(ny, nx)
 
         for i in range(width):
-            d = (width - i) / width  # normalised distance (1 at boundary, 0 at interface)
+            d = (width - i) / width  # 1 at boundary, 0 at interface
             val = sigma_max * (d ** 3)
-            # Left
             damping[:, i] = torch.maximum(damping[:, i], torch.tensor(val))
-            # Right
             damping[:, -(i + 1)] = torch.maximum(damping[:, -(i + 1)], torch.tensor(val))
-            # Top
             damping[i, :] = torch.maximum(damping[i, :], torch.tensor(val))
-            # Bottom
             damping[-(i + 1), :] = torch.maximum(damping[-(i + 1), :], torch.tensor(val))
 
         return damping.unsqueeze(0).unsqueeze(0)  # [1, 1, ny, nx]
@@ -92,7 +93,7 @@ class AcousticLeapfrogV4(nn.Module):
         return F.conv2d(p, self.lap_kernel, padding=1)
 
     def _single_step(self, p_curr: torch.Tensor, p_prev: torch.Tensor,
-                     c: torch.Tensor, alpha: torch.Tensor, sigma: torch.Tensor,
+                     c: torch.Tensor, alpha: torch.Tensor,
                      source_val: torch.Tensor) -> torch.Tensor:
         """
         Single Leapfrog time step.
@@ -102,7 +103,6 @@ class AcousticLeapfrogV4(nn.Module):
             p_prev: [B, 1, ny, nx] previous pressure
             c: [B, 1, ny, nx] speed of sound (m/s)
             alpha: [B, 1, ny, nx] attenuation (Np/m)
-            sigma: [B, 1, ny, nx] reflectivity [0, 1]
             source_val: [B] source amplitude at this time step
         Returns:
             p_next: [B, 1, ny, nx] next pressure
@@ -110,7 +110,7 @@ class AcousticLeapfrogV4(nn.Module):
         dt = self.dt
         dt2 = dt * dt
 
-        # Effective damping = physical attenuation + PML
+        # Total damping = physical attenuation + PML
         total_damping = alpha + self.pml_damping
 
         denom = 1.0 + total_damping * dt / 2.0
@@ -119,29 +119,30 @@ class AcousticLeapfrogV4(nn.Module):
         # Laplacian
         lap_p = self._laplacian(p_curr)
 
-        # Source term: inject at source position, modulated by reflectivity
+        # Source injection: plane wave across all source elements
+        # Source is INDEPENDENT of σ — it represents the transducer drive
         source_term = torch.zeros_like(p_curr)
-        source_term[:, 0, self.source_y, self.source_x] = (
-            source_val * sigma[:, 0, self.source_y, self.source_x]
-        )
+        # Inject at all source positions (plane wave)
+        source_term[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
 
         # Leapfrog update
-        p_next = (2.0 * p_curr - coeff_prev * p_prev + dt2 * (c * c * lap_p + source_term)) / denom
+        p_next = (2.0 * p_curr - coeff_prev * p_prev
+                  + dt2 * (c * c * lap_p + source_term)) / denom
 
         return p_next
 
     def _run_chunk(self, p_curr: torch.Tensor, p_prev: torch.Tensor,
-                   c: torch.Tensor, alpha: torch.Tensor, sigma: torch.Tensor,
+                   c: torch.Tensor, alpha: torch.Tensor,
                    source_chunk: torch.Tensor, step_offset: int) -> tuple:
         """Run a chunk of time steps (for gradient checkpointing)."""
         chunk_len = source_chunk.size(1)
         sensor_list = []
 
         for i in range(chunk_len):
-            p_next = self._single_step(p_curr, p_prev, c, alpha, sigma,
+            p_next = self._single_step(p_curr, p_prev, c, alpha,
                                         source_chunk[:, i])
-            # Extract sensor data at bottom row (far from source)
-            sensor_row = p_next[:, 0, self.sensor_y, :]  # [B, nx]
+            # Extract sensor data at transducer row (same as source — pulse-echo)
+            sensor_row = p_next[:, 0, self.transducer_row, :]  # [B, nx]
             sensor_data = sensor_row[:, self.sensor_x]  # [B, n_elements]
             sensor_list.append(sensor_data)
 
@@ -151,7 +152,7 @@ class AcousticLeapfrogV4(nn.Module):
         sensors = torch.stack(sensor_list, dim=2)  # [B, n_elements, chunk_len]
         return p_curr, p_prev, sensors
 
-    def forward(self, c: torch.Tensor, alpha: torch.Tensor, sigma: torch.Tensor,
+    def forward(self, c: torch.Tensor, alpha: torch.Tensor,
                 source: torch.Tensor) -> torch.Tensor:
         """
         Run full wave propagation.
@@ -159,7 +160,6 @@ class AcousticLeapfrogV4(nn.Module):
         Args:
             c: [B, 1, ny, nx] speed of sound (m/s)
             alpha: [B, 1, ny, nx] attenuation (Np/m)
-            sigma: [B, 1, ny, nx] reflectivity [0, 1]
             source: [B, n_steps] source waveform
         Returns:
             sensor_data: [B, n_elements, n_steps] pressure at sensor positions
@@ -188,47 +188,22 @@ class AcousticLeapfrogV4(nn.Module):
             source_chunk = source[:, start:end]
 
             if self.training and chunk_idx > 0:
-                # Use gradient checkpointing for memory efficiency
-                def run_fn(p_c, p_p, c_, a_, s_, src_, offset_):
-                    return self._run_chunk(p_c, p_p, c_, a_, s_, src_, offset_)
+                def run_fn(p_c, p_p, c_, a_, src_, offset_):
+                    return self._run_chunk(p_c, p_p, c_, a_, src_, offset_)
 
-                # checkpoint requires tensors as inputs
                 p_curr, p_prev, sensors = checkpoint(
-                    run_fn, p_curr, p_prev, c, alpha, sigma, source_chunk, start,
+                    run_fn, p_curr, p_prev, c, alpha, source_chunk, start,
                     use_reentrant=False,
                 )
             else:
                 p_curr, p_prev, sensors = self._run_chunk(
-                    p_curr, p_prev, c, alpha, sigma, source_chunk, start
+                    p_curr, p_prev, c, alpha, source_chunk, start
                 )
 
             all_sensors.append(sensors)
 
         sensor_data = torch.cat(all_sensors, dim=2)  # [B, n_elements, n_steps]
         return sensor_data
-
-    def compute_physics_residual(self, c: torch.Tensor, alpha: torch.Tensor,
-                                  p_fields: list) -> torch.Tensor:
-        """
-        Compute wave equation residual for monitoring (called under torch.no_grad).
-        
-        Args:
-            c: [B, 1, ny, nx]
-            alpha: [B, 1, ny, nx]
-            p_fields: list of 3 consecutive pressure fields [p_{n-1}, p_n, p_{n+1}]
-        Returns:
-            residual: scalar, mean absolute residual
-        """
-        p_prev, p_curr, p_next = p_fields
-        dt = self.dt
-        dt2 = dt * dt
-
-        lap_p = self._laplacian(p_curr)
-        lhs = p_next * (1.0 + alpha * dt / 2.0) - 2.0 * p_curr + (1.0 - alpha * dt / 2.0) * p_prev
-        rhs = dt2 * c * c * lap_p
-
-        residual = (lhs - rhs).abs().mean()
-        return residual
 
 
 # ---------------------------------------------------------------------------
@@ -242,7 +217,6 @@ if __name__ == '__main__':
     B = 1
     c = torch.ones(B, 1, 64, 64) * 1540.0
     alpha = torch.zeros(B, 1, 64, 64)
-    sigma = torch.ones(B, 1, 64, 64)
 
     # Ricker wavelet source
     f0 = 5e6
@@ -251,21 +225,18 @@ if __name__ == '__main__':
     arg = (math.pi * f0 * (t - t0)) ** 2
     source = ((1.0 - 2.0 * arg) * torch.exp(-arg)).unsqueeze(0)
 
-    # CFL check
     cfl = c.max().item() * 2.0e-8 / 2.34e-4 * math.sqrt(2)
     print(f"CFL number: {cfl:.4f} (must be < 1.0)")
 
-    sensor_data = prop(c, alpha, sigma, source)
+    sensor_data = prop(c, alpha, source)
     print(f"Sensor data shape: {sensor_data.shape}")
     print(f"Sensor data range: [{sensor_data.min():.6e}, {sensor_data.max():.6e}]")
 
-    # Check no learnable params
     n_params = sum(p.numel() for p in prop.parameters() if p.requires_grad)
     print(f"Learnable parameters: {n_params} (should be 0)")
 
-    # Check gradients flow through
     c.requires_grad_(True)
-    sensor_data = prop(c, alpha, sigma, source)
+    sensor_data = prop(c, alpha, source)
     loss = sensor_data.sum()
     loss.backward()
     print(f"Gradient on c exists: {c.grad is not None}")
