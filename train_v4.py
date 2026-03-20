@@ -184,9 +184,9 @@ def train(config: dict, resume_path: str = None):
                                        generator=torch.Generator().manual_seed(42))
 
     train_loader = DataLoader(train_set, batch_size=batch_size, shuffle=True,
-                               num_workers=0, pin_memory=True)
+                               num_workers=4, pin_memory=True, persistent_workers=True)
     val_loader = DataLoader(val_set, batch_size=batch_size, shuffle=False,
-                             num_workers=0, pin_memory=True)
+                             num_workers=2, pin_memory=True, persistent_workers=True)
 
     # --- Model ---
     model = DPCGNNAcousticV4(config).to(device)
