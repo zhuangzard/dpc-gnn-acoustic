@@ -59,9 +59,14 @@ def run_oracle(sample_dir, device='cuda'):
     
     n_steps = sensor_gt.shape[1]
     
-    # Create propagator
+    # Use k-Wave's actual dt (CRITICAL: must match GT timing)
+    kw_dt = meta.get('dt', DT)
+    if isinstance(kw_dt, str):
+        kw_dt = float(kw_dt)
+    
+    # Create propagator with k-Wave's dt
     prop = AcousticPropagatorV5(
-        nx=NX, ny=NY, dx=DX, dt=DT,
+        nx=NX, ny=NY, dx=DX, dt=kw_dt,
         pml_width=PML, n_elements=N_ELEMENTS, c_ref=C_REF,
     ).to(device).eval()
     
@@ -79,7 +84,7 @@ def run_oracle(sample_dir, device='cuda'):
     c_t = torch.from_numpy(c_perfect).unsqueeze(0).to(device)  # [1, nx, ny]
     alpha_t = torch.ones_like(c_t) * 5.0  # moderate attenuation
     rho_t = torch.from_numpy(rho).unsqueeze(0).to(device)
-    source = make_source(n_steps, DT, device)
+    source = make_source(n_steps, kw_dt, device)  # Use k-Wave's dt!
     gt_bmode = torch.from_numpy(bmode_gt).unsqueeze(0).unsqueeze(0).to(device)  # [1,1,128,128]
     gt_sensor = torch.from_numpy(sensor_gt).unsqueeze(0).to(device)  # [1, 128, n_steps]
     
@@ -119,6 +124,7 @@ def run_oracle(sample_dir, device='cuda'):
         'scenario': meta.get('scenario', '?'),
         'n_steps_v5': sensor_v5.shape[2],
         'n_steps_gt': gt_sensor.shape[2],
+        'kw_dt': f"{kw_dt:.4e}",
     }
 
 if __name__ == '__main__':
@@ -153,5 +159,6 @@ if __name__ == '__main__':
         print(f"  V5 echo rms:     {result['v5_echo_rms']:.6f}")
         print(f"  GT echo rms:     {result['gt_echo_rms']:.6f}")
         print(f"  Steps: V5={result['n_steps_v5']}, GT={result['n_steps_gt']}")
+        print(f"  kW dt: {result.get('kw_dt', '?')}")
     
     print("\n" + "=" * 70)
