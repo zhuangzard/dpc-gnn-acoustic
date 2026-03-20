@@ -123,27 +123,22 @@ class AcousticPropagatorV5(nn.Module):
         self.register_buffer("shift_pos_y", shift_pos_y)
         self.register_buffer("shift_neg_y", shift_neg_y)
 
-        # --- Per-axis kappa correction (unnormalized sinc) ---
-        # κ_x[kx] = sinc(c_ref * |kx| * dt / 2)  with sinc(x) = sin(x)/x
-        arg_x = c_ref * kx_1d.abs() * dt / 2.0  # [nx]
-        kappa_x_1d = torch.where(
-            arg_x < 1e-12,
-            torch.ones_like(arg_x),
-            torch.sin(arg_x) / arg_x,
-        )
-        arg_y = c_ref * ky_1d.abs() * dt / 2.0  # [ny]
-        kappa_y_1d = torch.where(
-            arg_y < 1e-12,
-            torch.ones_like(arg_y),
-            torch.sin(arg_y) / arg_y,
-        )
+        # --- Isotropic kappa correction (k-Wave exact) ---
+        # κ(kx,ky) = sinc(c_ref * |k| * dt / 2)  where |k| = sqrt(kx² + ky²)
+        # k-Wave uses a SINGLE isotropic kappa for ALL derivatives.
+        # Previous V5 bug: used separable kappa_x(kx) * kappa_y(ky) which
+        # under-corrects diagonal propagation → phase dispersion in echoes.
+        kx_2d_raw = kx_1d[:, None].expand(nx, ny)
+        ky_2d_raw = ky_1d[None, :].expand(nx, ny)
+        k_mag = torch.sqrt(kx_2d_raw**2 + ky_2d_raw**2)  # [nx, ny]
+        arg_k = c_ref * k_mag * dt / 2.0
+        kappa_2d = torch.where(
+            arg_k < 1e-12,
+            torch.ones_like(arg_k),
+            torch.sin(arg_k) / arg_k,
+        )  # [nx, ny]
 
-        # Broadcast to 2D
-        kappa_x_2d = kappa_x_1d[:, None].expand(nx, ny)  # [nx, ny]
-        kappa_y_2d = kappa_y_1d[None, :].expand(nx, ny)  # [nx, ny]
-
-        self.register_buffer("kappa_x", kappa_x_2d)
-        self.register_buffer("kappa_y", kappa_y_2d)
+        self.register_buffer("kappa", kappa_2d)
 
         # --- PML coefficients: exp(-sigma * dt / 2) ---
         # k-Wave uses multiplicative PML: field = pml * (pml * field - dt * rhs)
@@ -233,8 +228,8 @@ class AcousticPropagatorV5(nn.Module):
         # 3. Velocity update with kappa correction, staggered shift, and multiplicative PML
         #    k-Wave: dp_dx = ifft2(kappa_x * ddx_k_shift_pos * p_k).real
         #    where ddx_k_shift_pos = 1j*kx * exp(+1j*kx*dx/2)
-        dp_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * self.shift_pos_x * p_k).real
-        dp_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * self.shift_pos_y * p_k).real
+        dp_dx = torch.fft.ifft2(self.kappa * 1j * self.kx_2d * self.shift_pos_x * p_k).real
+        dp_dy = torch.fft.ifft2(self.kappa * 1j * self.ky_2d * self.shift_pos_y * p_k).real
 
         ux_sgx = self.pml_x_sgx * (self.pml_x_sgx * ux_sgx - dt / rho0_sgx * dp_dx)
         uy_sgy = self.pml_y_sgy * (self.pml_y_sgy * uy_sgy - dt / rho0_sgy * dp_dy)
@@ -245,8 +240,8 @@ class AcousticPropagatorV5(nn.Module):
         ux_k = torch.fft.fft2(ux_sgx)
         uy_k = torch.fft.fft2(uy_sgy)
 
-        dux_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * self.shift_neg_x * ux_k).real
-        duy_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * self.shift_neg_y * uy_k).real
+        dux_dx = torch.fft.ifft2(self.kappa * 1j * self.kx_2d * self.shift_neg_x * ux_k).real
+        duy_dy = torch.fft.ifft2(self.kappa * 1j * self.ky_2d * self.shift_neg_y * uy_k).real
 
         rhox = self.pml_x * (self.pml_x * rhox - dt * rho0 * dux_dx)
         rhoy = self.pml_y * (self.pml_y * rhoy - dt * rho0 * duy_dy)
