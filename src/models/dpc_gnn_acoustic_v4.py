@@ -221,6 +221,7 @@ class GNNEncoder(nn.Module):
 
         # --- Attenuation ---
         alpha = F.softplus(alpha_raw) * 10.0  # [0, ~50] Np/m
+        alpha = alpha.clamp(max=20.0)  # Physical limit: soft tissue α < 20 Np/m at 2 MHz
 
         return c, alpha
 
