@@ -104,6 +104,12 @@ class AcousticLeapfrogV4(nn.Module):
         self.register_buffer('sensor_x', sensor_x)
         self.register_buffer('source_x', sensor_x)
 
+        # Source mask for differentiable Dirichlet injection
+        # 1.0 at source positions, 0.0 elsewhere
+        smask = torch.zeros(1, 1, ny, nx)
+        smask[0, 0, self.transducer_row, sensor_x] = 1.0
+        self.register_buffer('source_mask', smask)
+
     def _build_pml_profile(self, nx: int, ny: int, width: int,
                             sigma_max: float) -> torch.Tensor:
         """Build 2D PML damping coefficient field (cubic polynomial decay)."""
@@ -231,9 +237,12 @@ class AcousticLeapfrogV4(nn.Module):
 
         # Source injection: DIRICHLET mode (matching k-Wave's source.p_mode="dirichlet")
         # k-Wave REPLACES pressure at source positions with signal value.
-        # This is NOT additive — it overrides the propagated field.
-        # This ensures correct amplitude matching with k-Wave GT.
-        p_next[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
+        # Using mask-based blending instead of in-place assignment to preserve
+        # autograd gradient flow through the propagator.
+        source_field = torch.zeros_like(p_next)
+        source_field[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
+        # source_mask is 1 at source positions, 0 elsewhere (registered buffer)
+        p_next = p_next * (1.0 - self.source_mask) + source_field * self.source_mask
 
         return p_next
 
