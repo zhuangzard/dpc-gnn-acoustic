@@ -85,8 +85,12 @@ def run_sim(c_map, rho_map, source):
     min_time = 2.0 * DOMAIN_SIZE / C_TISSUE
     if Nt * dt < min_time:
         Nt = int(np.ceil(min_time / dt))
+    kgrid.setTime(Nt, dt)
 
-    medium = kWaveMedium(sound_speed=c_map, density=rho_map)
+    medium = kWaveMedium(
+        sound_speed=c_map.astype(np.float64),
+        density=rho_map.astype(np.float64),
+    )
 
     sensor = kSensor()
     smask = np.zeros((NX, NY), dtype=bool)
@@ -455,8 +459,15 @@ def save_sample(out_dir, idx, c_map, rho_map, sensor_data, meta):
         "dx": DX,
         "pml_size": PML_SIZE,
     })
+    class NpEncoder(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, np.integer): return int(obj)
+            if isinstance(obj, np.floating): return float(obj)
+            if isinstance(obj, np.ndarray): return obj.tolist()
+            return super().default(obj)
+    
     with open(os.path.join(d, "metadata.json"), "w") as f:
-        json.dump(meta, f, indent=2)
+        json.dump(meta, f, indent=2, cls=NpEncoder)
     
     sz = sum(os.path.getsize(os.path.join(d, fn)) for fn in os.listdir(d)) / 1024
     print(f"  → {d}  ct={ct_slice.shape} bmode={bmode.shape} rf={sensor_data.shape} ({sz:.0f}KB)")
