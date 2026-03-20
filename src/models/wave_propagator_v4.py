@@ -237,12 +237,18 @@ class AcousticLeapfrogV4(nn.Module):
 
         # Source injection: DIRICHLET mode (matching k-Wave's source.p_mode="dirichlet")
         # k-Wave REPLACES pressure at source positions with signal value.
-        # Using mask-based blending instead of in-place assignment to preserve
-        # autograd gradient flow through the propagator.
+        # Using mask-based blending to preserve autograd gradient flow.
+        #
+        # CRITICAL: Only inject when source_val != 0 (during burst).
+        # After burst, source_val=0 and we must let the propagated field
+        # pass through — otherwise sensor (same row) only sees source signal,
+        # not the c-dependent propagated wavefield, killing all gradients.
         source_field = torch.zeros_like(p_next)
         source_field[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
-        # source_mask is 1 at source positions, 0 elsewhere (registered buffer)
-        p_next = p_next * (1.0 - self.source_mask) + source_field * self.source_mask
+        # active_mask: only apply Dirichlet where source is nonzero
+        is_active = (source_val.abs() > 1e-12).float()  # [B]
+        active_mask = self.source_mask * is_active.view(-1, 1, 1, 1)  # [B,1,ny,nx]
+        p_next = p_next * (1.0 - active_mask) + source_field * active_mask
 
         return p_next
 
