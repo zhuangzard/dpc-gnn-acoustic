@@ -194,7 +194,8 @@ def train(config: dict, resume_path: str = None):
     print(f"Model parameters: {param_counts}")
 
     # --- Loss ---
-    loss_fn = DPCGNNAcousticLossV4().to(device)
+    loss_type = config.get('training', {}).get('loss_type', 'l1_ssim')
+    loss_fn = DPCGNNAcousticLossV4(loss_type=loss_type).to(device)
 
     # --- Optimizer ---
     optimizer = torch.optim.AdamW(

@@ -84,6 +84,28 @@ class AntisymmetricMPLayer(nn.Module):
 # ---------------------------------------------------------------------------
 # GNN Encoder  (CNN↓ → GNN × L → CNN↑)
 # ---------------------------------------------------------------------------
+class SymmetricMPLayer(nn.Module):
+    """Standard (non-antisymmetric) message passing for ablation."""
+    def __init__(self, hidden_dim: int):
+        super().__init__()
+        self.W = nn.Parameter(torch.randn(hidden_dim, hidden_dim) * 0.01)
+        self.bias = nn.Parameter(torch.zeros(hidden_dim))
+        self.norm = nn.LayerNorm(hidden_dim)
+
+    def forward(self, h, edge_index):
+        src, dst = edge_index
+        diff = h[src] - h[dst]
+        msg = torch.tanh(diff @ self.W)  # NO antisymmetry: W, not W - W^T
+        agg = torch.zeros_like(h)
+        count = torch.zeros(h.size(0), 1, device=h.device)
+        agg.scatter_add_(0, dst.unsqueeze(-1).expand_as(msg), msg)
+        count.scatter_add_(0, dst.unsqueeze(-1), torch.ones(dst.size(0), 1, device=h.device))
+        count = count.clamp(min=1)
+        agg = agg / count
+        h_new = self.norm(h + agg + self.bias)
+        return h_new
+
+
 class GNNEncoder(nn.Module):
     """
     CNN downsample (256→64) → flatten to graph → k-NN edges →
@@ -92,12 +114,14 @@ class GNNEncoder(nn.Module):
     """
 
     def __init__(self, hidden_dim: int = 96, n_mp_layers: int = 5,
-                 k_local: int = 8, c_min: float = 1400.0, c_max: float = 1700.0):
+                 k_local: int = 8, c_min: float = 1400.0, c_max: float = 1700.0,
+                 use_residual: bool = True, antisymmetric: bool = True):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.k_local = k_local
         self.c_min = c_min
         self.c_max = c_max
+        self.use_residual = use_residual
 
         # --- CNN Downsample: 1ch 256×256 → hidden_dim ch 64×64 ---
         self.down = nn.Sequential(
@@ -107,8 +131,9 @@ class GNNEncoder(nn.Module):
         )
 
         # --- GNN message-passing layers ---
+        MPLayerClass = AntisymmetricMPLayer if antisymmetric else SymmetricMPLayer
         self.mp_layers = nn.ModuleList([
-            AntisymmetricMPLayer(hidden_dim) for _ in range(n_mp_layers)
+            MPLayerClass(hidden_dim) for _ in range(n_mp_layers)
         ])
 
         # --- CNN Upsample: hidden_dim ch 64×64 → 3ch 256×256 ---
@@ -197,9 +222,13 @@ class GNNEncoder(nn.Module):
         sigma_raw = out[:, 2:3]
 
         # --- Physics prior for speed-of-sound ---
-        c_table = hu_to_speed_of_sound(ct, self.c_min, self.c_max)  # [B, 1, 256, 256]
-        # c_residual scaled to ±150 m/s (full range coverage for uniform phantoms)
-        c = c_table + torch.tanh(c_residual) * 150.0
+        if self.use_residual:
+            c_table = hu_to_speed_of_sound(ct, self.c_min, self.c_max)  # [B, 1, 256, 256]
+            # c_residual scaled to ±150 m/s (full range coverage for uniform phantoms)
+            c = c_table + torch.tanh(c_residual) * 150.0
+        else:
+            # Ablation: direct prediction, no c_table decomposition
+            c = torch.sigmoid(c_residual) * (self.c_max - self.c_min) + self.c_min
         c = c.clamp(self.c_min, self.c_max)
 
         # --- Activation for attenuation ---
@@ -235,6 +264,8 @@ class DPCGNNAcousticV4(nn.Module):
             k_local=model_cfg.get('k_local', 8),
             c_min=model_cfg.get('c_min', 1400.0),
             c_max=model_cfg.get('c_max', 1700.0),
+            use_residual=model_cfg.get('use_residual', True),
+            antisymmetric=model_cfg.get('antisymmetric', True),
         )
 
         # --- Deterministic Leapfrog Propagator (no learnable params) ---

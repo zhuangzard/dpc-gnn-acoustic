@@ -87,10 +87,11 @@ class DPCGNNAcousticLossV4(nn.Module):
       - energy_ratio: energy conservation check
     """
 
-    def __init__(self):
+    def __init__(self, loss_type: str = 'l1_ssim'):
         super().__init__()
         self.ssim_fn = SSIM(window_size=11, sigma=1.5)
         self.l1_fn = nn.L1Loss()
+        self.loss_type = loss_type  # 'l1_ssim' (default) or 'l1_only'
 
     def forward(self, pred_bmode: torch.Tensor, gt_bmode: torch.Tensor,
                 model_outputs: dict = None) -> tuple:
@@ -108,7 +109,10 @@ class DPCGNNAcousticLossV4(nn.Module):
         ssim_val = self.ssim_fn(pred_bmode, gt_bmode)
         ssim_loss = 1.0 - ssim_val
 
-        loss = l1_loss + ssim_loss
+        if self.loss_type == 'l1_only':
+            loss = l1_loss  # Ablation: no SSIM component
+        else:
+            loss = l1_loss + ssim_loss
 
         # --- Monitoring metrics (no gradient!) ---
         metrics = {
