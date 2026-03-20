@@ -132,27 +132,30 @@ class AcousticPropagatorV5(nn.Module):
             sigma_y_1d[i] = val
             sigma_y_1d[ny - 1 - i] = val
 
-        # PML decay factors: (1 - σ·dt/2) / (1 + σ·dt/2)
-        pml_x_1d = (1.0 - sigma_x_1d * dt / 2.0) / (1.0 + sigma_x_1d * dt / 2.0)
-        pml_y_1d = (1.0 - sigma_y_1d * dt / 2.0) / (1.0 + sigma_y_1d * dt / 2.0)
-
-        # 2D PML maps
-        pml_x_2d = pml_x_1d[:, None].expand(nx, ny)  # for u_x
-        pml_y_2d = pml_y_1d[None, :].expand(nx, ny)  # for u_y
+        # PML Crank-Nicolson factors (separate numerator and denominator)
+        # Correct form: field_new = (num * field_old - dt*rhs) / den
+        # where num = (1 - σ·dt/2), den = (1 + σ·dt/2)
+        pml_num_x = (1.0 - sigma_x_1d * dt / 2.0)[:, None].expand(nx, ny)
+        pml_num_y = (1.0 - sigma_y_1d * dt / 2.0)[None, :].expand(nx, ny)
+        pml_inv_den_x = (1.0 / (1.0 + sigma_x_1d * dt / 2.0))[:, None].expand(nx, ny)
+        pml_inv_den_y = (1.0 / (1.0 + sigma_y_1d * dt / 2.0))[None, :].expand(nx, ny)
 
         # Pressure PML: combined σ_x + σ_y
         sigma_p_2d = sigma_x_1d[:, None] + sigma_y_1d[None, :]
-        pml_p_2d = (1.0 - sigma_p_2d * dt / 2.0) / (1.0 + sigma_p_2d * dt / 2.0)
+        pml_num_p = 1.0 - sigma_p_2d * dt / 2.0
+        pml_inv_den_p = 1.0 / (1.0 + sigma_p_2d * dt / 2.0)
 
-        self.register_buffer("pml_x", pml_x_2d)
-        self.register_buffer("pml_y", pml_y_2d)
-        self.register_buffer("pml_p", pml_p_2d)
+        self.register_buffer("pml_num_x", pml_num_x)
+        self.register_buffer("pml_num_y", pml_num_y)
+        self.register_buffer("pml_inv_den_x", pml_inv_den_x)
+        self.register_buffer("pml_inv_den_y", pml_inv_den_y)
+        self.register_buffer("pml_num_p", pml_num_p)
+        self.register_buffer("pml_inv_den_p", pml_inv_den_p)
 
-        # Attenuation denominator for pressure PML (for stability)
-        pml_denom_x = 1.0 / (1.0 + sigma_x_1d * dt / 2.0)
-        pml_denom_y = 1.0 / (1.0 + sigma_y_1d * dt / 2.0)
-        self.register_buffer("pml_denom_x", pml_denom_x[:, None].expand(nx, ny))
-        self.register_buffer("pml_denom_y", pml_denom_y[None, :].expand(nx, ny))
+        # Keep combined ratio for backward compat
+        self.register_buffer("pml_x", pml_num_x * pml_inv_den_x)
+        self.register_buffer("pml_y", pml_num_y * pml_inv_den_y)
+        self.register_buffer("pml_p", pml_num_p * pml_inv_den_p)
 
         # Sensor column indices
         sensor_cols = torch.arange(self.element_start, self.element_end)
@@ -196,22 +199,22 @@ class AcousticPropagatorV5(nn.Module):
         """
         dt = self.dt
 
-        # --- Velocity update ---
-        # u_x^{n+1} = PML_x · u_x^n − (dt/ρ) · F⁻¹{ κ_x · ik_x · F{p^n} }
+        # --- Velocity update (Crank-Nicolson PML) ---
+        # Correct form: ux_new = [(1-σ_x·dt/2)·ux - dt/ρ·∂p/∂x] / (1+σ_x·dt/2)
         dp_dx_kappa = self._spectral_grad_x_kappa(p)
-        ux_new = self.pml_x * ux - dt * rho_inv * dp_dx_kappa
+        ux_new = (self.pml_num_x * ux - dt * rho_inv * dp_dx_kappa) * self.pml_inv_den_x
 
-        # u_y^{n+1} = PML_y · u_y^n − (dt/ρ) · F⁻¹{ κ_y · ik_y · F{p^n} }
         dp_dy_kappa = self._spectral_grad_y_kappa(p)
-        uy_new = self.pml_y * uy - dt * rho_inv * dp_dy_kappa
+        uy_new = (self.pml_num_y * uy - dt * rho_inv * dp_dy_kappa) * self.pml_inv_den_y
 
-        # --- Pressure update ---
-        # p^{n+1} = PML_p · p^n − ρc²·dt · F⁻¹{ ik_x·F{u_x} + ik_y·F{u_y} }
-        dux_dx = self._spectral_grad_x(ux_new)
-        duy_dy = self._spectral_grad_y(uy_new)
+        # --- Pressure update (kappa on BOTH derivatives, matching k-Wave) ---
+        # p_new = [(1-σ_p·dt/2)·p - ρc²·dt·∇·u] / (1+σ_p·dt/2)
+        # k-Wave applies kappa to divergence too: F⁻¹{κ_x·ik_x·F{u_x}} + F⁻¹{κ_y·ik_y·F{u_y}}
+        dux_dx = self._spectral_grad_x_kappa(ux_new)
+        duy_dy = self._spectral_grad_y_kappa(uy_new)
         div_u = dux_dx + duy_dy
 
-        p_new = self.pml_p * p - rho * c_sq * dt * div_u
+        p_new = (self.pml_num_p * p - rho * c_sq * dt * div_u) * self.pml_inv_den_p
 
         # --- Physical attenuation (applied as exponential damping) ---
         p_new = p_new * attenuation
