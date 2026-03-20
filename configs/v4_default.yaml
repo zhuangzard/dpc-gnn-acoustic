@@ -8,7 +8,7 @@ model:
   n_mp_layers: 5          # Number of antisymmetric message-passing layers
   k_local: 8              # k-NN locality for graph edges
   c_min: 1400             # Min speed of sound (m/s)
-  c_max: 1700             # Max speed of sound (m/s)
+  c_max: 2000             # Max speed of sound (m/s) — covers all tissue types including cartilage/bone
 
 physics:
   dx: 2.34e-4             # Grid spacing (m) — matches k-Wave setup

@@ -32,7 +32,7 @@ from .beamform_decoder_v4 import DifferentiableBeamformerV4
 # CT → speed-of-sound lookup table (linear prior)
 # ---------------------------------------------------------------------------
 def ct_to_speed_of_sound(ct_norm: torch.Tensor, c_min: float = 1400.0,
-                          c_max: float = 1700.0) -> torch.Tensor:
+                          c_max: float = 2000.0) -> torch.Tensor:
     """
     Direct linear mapping from normalised CT [0, 1] to speed of sound [c_min, c_max].
     No intermediate HU conversion — avoids information loss from non-invertible mapping.

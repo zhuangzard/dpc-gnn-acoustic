@@ -87,7 +87,7 @@ class KWaveDataset(Dataset):
         # Normalise CT to [0, 1] using global range (handles uniform phantoms)
         # CT data contains speed-of-sound values (~20-1700 m/s range)
         # Use fixed global range instead of per-sample min/max
-        ct_global_min, ct_global_max = 0.0, 400.0  # covers k-Wave GT data range
+        ct_global_min, ct_global_max = 0.0, 800.0  # covers c range [1400,2000] via c_to_hu
         ct = (ct - ct_global_min) / (ct_global_max - ct_global_min)
         ct = np.clip(ct, 0.0, 1.0)
 
