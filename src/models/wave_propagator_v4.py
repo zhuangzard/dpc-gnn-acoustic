@@ -118,13 +118,18 @@ class AcousticLeapfrogV4(nn.Module):
         return damping.unsqueeze(0).unsqueeze(0)
 
     def _spectral_laplacian_kspace(self, p: torch.Tensor,
-                                     c_ratio_sq: torch.Tensor) -> torch.Tensor:
+                                     c_ratio_sq: torch.Tensor,
+                                     rho_inv: torch.Tensor = None) -> torch.Tensor:
         """
-        k-space corrected pseudospectral Laplacian.
+        k-space corrected pseudospectral Laplacian with optional density.
         
-        Computes: κ · (c/c_ref)² · dt² · c_ref² · ∇²p
+        Without density (rho_inv=None):
+            κ · (c/c_ref)² · dt² · c_ref² · ∇²p
         
-        where ∇² is computed exactly in Fourier space as -k²·P(k).
+        With density (rho_inv provided):
+            κ · ρ · c² · dt² · ∇·(1/ρ · ∇p)
+            Approximated as: κ · (c/c_ref)² · dt² · c_ref² · ∇²p
+            (density effect handled via acoustic impedance in reflection)
         
         For spatially varying c: apply (c/c_ref)² in spatial domain after
         the spectral Laplacian (k-Wave's approach for heterogeneous media).
@@ -132,24 +137,57 @@ class AcousticLeapfrogV4(nn.Module):
         Args:
             p: [B, 1, ny, nx] pressure field
             c_ratio_sq: [B, 1, ny, nx] = (c(x,y) / c_ref)²
+            rho_inv: [B, 1, ny, nx] = 1/ρ(x,y) (optional, for density effects)
         Returns:
-            result: [B, 1, ny, nx] = κ · (c/c_ref)² · dt² · c_ref² · ∇²p
+            result: [B, 1, ny, nx]
         """
-        # FFT of pressure field
-        P = torch.fft.rfft2(p)
-        
-        # Spectral Laplacian with k-space correction:
-        # -k² · κ · dt² · c_ref² · P(k)
-        P_lap = -self.k_sq * self.dt2_cref2_kappa * P
-        
-        # Back to spatial domain
-        lap_corrected = torch.fft.irfft2(P_lap, s=(self.ny, self.nx))
-        
-        # Apply spatially varying (c/c_ref)² in spatial domain
-        # This is the standard k-Wave approach for heterogeneous media
-        result = c_ratio_sq * lap_corrected
-        
-        return result
+        if rho_inv is not None:
+            # Full heterogeneous equation: ρ·c²·∇·(∇p/ρ)
+            # Step 1: compute ∇p/ρ in spectral domain, then ∇· in spectral domain
+            # Approximate: compute ∇²(p) spectrally, then modulate by ρ effect
+            # k-Wave approach: ∇·(1/ρ · ∇p) via spectral derivatives
+            
+            # Compute spectral gradient components of p
+            P = torch.fft.rfft2(p)
+            # ikx and iky wavenumber grids
+            kx = torch.fft.rfftfreq(self.nx, d=self.dx).to(p.device) * 2.0 * math.pi
+            ky = torch.fft.fftfreq(self.ny, d=self.dx).to(p.device) * 2.0 * math.pi
+            ky_g, kx_g = torch.meshgrid(ky, kx, indexing='ij')
+            
+            # ∂p/∂x and ∂p/∂y in spectral domain
+            dpdx = torch.fft.irfft2(1j * kx_g * P, s=(self.ny, self.nx))
+            dpdy = torch.fft.irfft2(1j * ky_g * P, s=(self.ny, self.nx))
+            
+            # (1/ρ) · ∇p
+            rho_inv_dpdx = rho_inv * dpdx
+            rho_inv_dpdy = rho_inv * dpdy
+            
+            # ∇·((1/ρ)·∇p) in spectral domain
+            Fx = torch.fft.rfft2(rho_inv_dpdx)
+            Fy = torch.fft.rfft2(rho_inv_dpdy)
+            div_F = torch.fft.irfft2(1j * kx_g * Fx + 1j * ky_g * Fy, 
+                                      s=(self.ny, self.nx))
+            
+            # Apply kappa correction and c²·ρ factor
+            # result = κ · dt² · c² · ρ · ∇·(∇p/ρ)
+            # But we precomputed dt2_cref2_kappa, so need to adjust
+            # Simple approach: apply kappa to div_F in spectral domain
+            Div = torch.fft.rfft2(div_F)
+            Div_corrected = self.kappa * Div
+            div_corrected = torch.fft.irfft2(Div_corrected, s=(self.ny, self.nx))
+            
+            dt2 = self.dt * self.dt
+            # c_ratio_sq already contains (c/c_ref)², multiply by c_ref² and dt²
+            result = c_ratio_sq * (self.c_ref ** 2) * dt2 * div_corrected
+            
+            return result
+        else:
+            # Original: no density
+            P = torch.fft.rfft2(p)
+            P_lap = -self.k_sq * self.dt2_cref2_kappa * P
+            lap_corrected = torch.fft.irfft2(P_lap, s=(self.ny, self.nx))
+            result = c_ratio_sq * lap_corrected
+            return result
 
     def _apply_source_kspace(self, source_field: torch.Tensor) -> torch.Tensor:
         """
@@ -163,7 +201,7 @@ class AcousticLeapfrogV4(nn.Module):
 
     def _single_step(self, p_curr: torch.Tensor, p_prev: torch.Tensor,
                      c_ratio_sq: torch.Tensor, alpha: torch.Tensor,
-                     source_val: torch.Tensor) -> torch.Tensor:
+                     source_val: torch.Tensor, rho_inv: torch.Tensor = None) -> torch.Tensor:
         """
         Single Leapfrog time step with k-space correction.
         
@@ -185,29 +223,31 @@ class AcousticLeapfrogV4(nn.Module):
         coeff_prev = 1.0 - total_damping * dt / 2.0
 
         # k-space corrected spectral Laplacian term
-        lap_term = self._spectral_laplacian_kspace(p_curr, c_ratio_sq)
+        lap_term = self._spectral_laplacian_kspace(p_curr, c_ratio_sq, rho_inv)
 
-        # Source injection with k-space correction
-        source_field = torch.zeros_like(p_curr)
-        source_field[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
-        source_corrected = self._apply_source_kspace(dt2 * source_field)
-
-        # Leapfrog update
+        # Leapfrog update (without source)
         p_next = (2.0 * p_curr - coeff_prev * p_prev
-                  + lap_term + source_corrected) / denom
+                  + lap_term) / denom
+
+        # Source injection: DIRICHLET mode (matching k-Wave's source.p_mode="dirichlet")
+        # k-Wave REPLACES pressure at source positions with signal value.
+        # This is NOT additive — it overrides the propagated field.
+        # This ensures correct amplitude matching with k-Wave GT.
+        p_next[:, 0, self.transducer_row, self.source_x] = source_val.unsqueeze(-1)
 
         return p_next
 
     def _run_chunk(self, p_curr: torch.Tensor, p_prev: torch.Tensor,
                    c_ratio_sq: torch.Tensor, alpha: torch.Tensor,
-                   source_chunk: torch.Tensor, step_offset: int) -> tuple:
+                   source_chunk: torch.Tensor, step_offset: int,
+                   rho_inv: torch.Tensor = None) -> tuple:
         """Run a chunk of time steps (for gradient checkpointing)."""
         chunk_len = source_chunk.size(1)
         sensor_list = []
 
         for i in range(chunk_len):
             p_next = self._single_step(p_curr, p_prev, c_ratio_sq, alpha,
-                                        source_chunk[:, i])
+                                        source_chunk[:, i], rho_inv)
             sensor_row = p_next[:, 0, self.transducer_row, :]
             sensor_data = sensor_row[:, self.sensor_x]
             sensor_list.append(sensor_data)
@@ -219,7 +259,7 @@ class AcousticLeapfrogV4(nn.Module):
         return p_curr, p_prev, sensors
 
     def forward(self, c: torch.Tensor, alpha: torch.Tensor,
-                source: torch.Tensor) -> torch.Tensor:
+                source: torch.Tensor, rho: torch.Tensor = None) -> torch.Tensor:
         """
         Run full wave propagation with k-space correction.
         
@@ -227,6 +267,7 @@ class AcousticLeapfrogV4(nn.Module):
             c: [B, 1, ny, nx] speed of sound (m/s)
             alpha: [B, 1, ny, nx] attenuation (Np/m)
             source: [B, n_steps] source waveform
+            rho: [B, 1, ny, nx] density (kg/m³), optional
         Returns:
             sensor_data: [B, n_elements, n_steps] pressure at sensor positions
         """
@@ -242,6 +283,9 @@ class AcousticLeapfrogV4(nn.Module):
 
         # Precompute (c / c_ref)² for spatially varying medium
         c_ratio_sq = (c / self.c_ref) ** 2
+        
+        # Precompute 1/rho if density is provided
+        rho_inv = (1.0 / rho) if rho is not None else None
 
         # Initialise pressure fields
         p_curr = torch.zeros(B, 1, self.ny, self.nx, device=device, dtype=c.dtype)
@@ -257,17 +301,17 @@ class AcousticLeapfrogV4(nn.Module):
             source_chunk = source[:, start:end]
 
             if self.training and chunk_idx > 0:
-                def run_fn(p_c, p_p, cr2, a_, src_, offset_):
-                    return self._run_chunk(p_c, p_p, cr2, a_, src_, offset_)
+                def run_fn(p_c, p_p, cr2, a_, src_, offset_, ri_):
+                    return self._run_chunk(p_c, p_p, cr2, a_, src_, offset_, ri_)
 
                 p_curr, p_prev, sensors = checkpoint(
                     run_fn, p_curr, p_prev, c_ratio_sq, alpha,
-                    source_chunk, start,
+                    source_chunk, start, rho_inv,
                     use_reentrant=False,
                 )
             else:
                 p_curr, p_prev, sensors = self._run_chunk(
-                    p_curr, p_prev, c_ratio_sq, alpha, source_chunk, start
+                    p_curr, p_prev, c_ratio_sq, alpha, source_chunk, start, rho_inv
                 )
 
             all_sensors.append(sensors)

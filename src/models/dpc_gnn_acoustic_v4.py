@@ -349,7 +349,8 @@ class DPCGNNAcousticV4(nn.Module):
             signal[:n_burst] = sine * window
 
         signal = signal / (signal.abs().max() + 1e-12)
-        signal = signal * 1e10  # Scale to overcome dt²=4e-16
+        # No 1e10 scaling needed — Dirichlet source injection replaces p directly
+        # k-Wave uses source amplitude ~1.0 with p_mode="dirichlet"
         return signal.unsqueeze(0).expand(batch_size, -1)
 
     def count_parameters(self) -> dict:

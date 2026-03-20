@@ -12,8 +12,8 @@ model:
 
 physics:
   dx: 2.34e-4             # Grid spacing (m) — matches k-Wave setup
-  dt: 2.0e-8              # Time step (s) — CFL-safe for c_max=1700
-  n_time_steps: 1754      # Match k-Wave GT: full domain coverage + round trip
+  dt: 4.0e-8              # Time step (s) — matches k-Wave dt (~4e-8), CFL=0.41
+  n_time_steps: 1950      # ~78 μs total time, matches k-Wave round-trip coverage
   pml_width: 20           # PML absorbing boundary width (grid cells)
   c0: 1540.0              # Reference speed of sound for beamforming (m/s)
 
