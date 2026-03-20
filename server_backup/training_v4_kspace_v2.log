@@ -1,0 +1,25 @@
+Config: configs/v4_default.yaml
+Config contents: {'model': {'hidden_dim': 96, 'n_mp_layers': 5, 'k_local': 8, 'c_min': 1400, 'c_max': 1700}, 'physics': {'dx': 0.000234, 'dt': 2e-08, 'n_time_steps': 1754, 'pml_width': 20, 'c0': 1540.0}, 'data': {'data_dir': 'data/kwave_gt', 'grid_resolution': 256}, 'training': {'epochs': 200, 'lr': 0.0001, 'weight_decay': 1e-05, 'batch_size': 1, 'warmup_epochs': 5, 'patience': 30, 'grad_clip': 1.0, 'use_amp': False, 'checkpoint_dir': 'checkpoints_v4'}}
+Device: cuda
+Dataset: 200 samples
+Model parameters: {'encoder': 252962, 'propagator': 0, 'beamformer': 0, 'total': 252962}
+
+================================================================================
+DPC-GNN-Acoustic V4 Training
+Epochs: 200, LR: 0.0001, Batch: 1
+Warmup: 5 epochs, Patience: 30
+AMP: False, Grad clip: 1.0
+================================================================================
+
+Epoch 000/200 | Loss: 0.7813 | L1: 0.1954 | SSIM: 0.4142 | Val Loss: 0.7875 | c_mean: 1492.0 | c_std: 51.7 | α_mean: 6.42 | LR: 2.00e-05 | Time: 339.3s
+  → Saved best model (val_loss=0.787521)
+Epoch 001/200 | Loss: 0.7706 | L1: 0.1625 | SSIM: 0.3918 | Val Loss: 0.7817 | c_mean: 1507.8 | c_std: 53.6 | α_mean: 6.65 | LR: 4.00e-05 | Time: 339.5s
+  → Saved best model (val_loss=0.781726)
+Epoch 002/200 | Loss: 0.7670 | L1: 0.1618 | SSIM: 0.3948 | Val Loss: 0.7729 | c_mean: 1509.6 | c_std: 53.8 | α_mean: 6.70 | LR: 6.00e-05 | Time: 337.3s
+  → Saved best model (val_loss=0.772920)
+Epoch 003/200 | Loss: 0.7850 | L1: 0.1725 | SSIM: 0.3876 | Val Loss: 0.7549 | c_mean: 1502.3 | c_std: 51.6 | α_mean: 6.67 | LR: 8.00e-05 | Time: 337.1s
+  → Saved best model (val_loss=0.754908)
+Epoch 004/200 | Loss: 0.7530 | L1: 0.1596 | SSIM: 0.4066 | Val Loss: 0.7364 | c_mean: 1488.6 | c_std: 54.4 | α_mean: 6.53 | LR: 1.00e-04 | Time: 338.1s
+  → Saved best model (val_loss=0.736378)
+Epoch 005/200 | Loss: 0.7627 | L1: 0.1598 | SSIM: 0.3971 | Val Loss: 0.7321 | c_mean: 1486.8 | c_std: 56.4 | α_mean: 6.52 | LR: 1.00e-04 | Time: 337.5s
+  → Saved best model (val_loss=0.732052)

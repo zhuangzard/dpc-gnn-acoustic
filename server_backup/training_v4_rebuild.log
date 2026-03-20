@@ -1,0 +1,36 @@
+Config: configs/v4_default.yaml
+Config contents: {'model': {'hidden_dim': 96, 'n_mp_layers': 5, 'k_local': 8, 'c_min': 1400, 'c_max': 1700}, 'physics': {'dx': 0.000234, 'dt': 2e-08, 'n_time_steps': 1754, 'pml_width': 20, 'c0': 1540.0}, 'data': {'data_dir': 'data/kwave_gt', 'grid_resolution': 256}, 'training': {'epochs': 200, 'lr': 0.0001, 'weight_decay': 1e-05, 'batch_size': 1, 'warmup_epochs': 5, 'patience': 30, 'grad_clip': 1.0, 'use_amp': False, 'checkpoint_dir': 'checkpoints_v4'}}
+Device: cuda
+Dataset: 200 samples
+Model parameters: {'encoder': 252962, 'propagator': 0, 'beamformer': 0, 'total': 252962}
+
+================================================================================
+DPC-GNN-Acoustic V4 Training
+Epochs: 200, LR: 0.0001, Batch: 1
+Warmup: 5 epochs, Patience: 30
+AMP: False, Grad clip: 1.0
+================================================================================
+
+Epoch 000/200 | Loss: 0.7953 | L1: 0.3220 | SSIM: 0.5267 | Val Loss: 0.7855 | c_mean: 1449.5 | c_std: 51.3 | α_mean: 6.51 | LR: 2.00e-05 | Time: 274.7s
+  → Saved best model (val_loss=0.785494)
+Epoch 001/200 | Loss: 0.7787 | L1: 0.3212 | SSIM: 0.5426 | Val Loss: 0.7769 | c_mean: 1450.9 | c_std: 52.5 | α_mean: 6.41 | LR: 4.00e-05 | Time: 275.0s
+  → Saved best model (val_loss=0.776895)
+Epoch 002/200 | Loss: 0.7730 | L1: 0.3209 | SSIM: 0.5479 | Val Loss: 0.7738 | c_mean: 1453.0 | c_std: 54.3 | α_mean: 6.38 | LR: 6.00e-05 | Time: 274.3s
+  → Saved best model (val_loss=0.773781)
+Epoch 003/200 | Loss: 0.7712 | L1: 0.3207 | SSIM: 0.5494 | Val Loss: 0.7716 | c_mean: 1453.5 | c_std: 54.9 | α_mean: 6.29 | LR: 8.00e-05 | Time: 273.3s
+  → Saved best model (val_loss=0.771641)
+Epoch 004/200 | Loss: 0.7684 | L1: 0.3204 | SSIM: 0.5519 | Val Loss: 0.7686 | c_mean: 1453.5 | c_std: 55.4 | α_mean: 6.12 | LR: 1.00e-04 | Time: 273.1s
+  → Saved best model (val_loss=0.768573)
+Epoch 005/200 | Loss: 0.7653 | L1: 0.3197 | SSIM: 0.5544 | Val Loss: 0.7652 | c_mean: 1454.0 | c_std: 55.7 | α_mean: 5.78 | LR: 1.00e-04 | Time: 274.5s
+  → Saved best model (val_loss=0.765216)
+Epoch 006/200 | Loss: 0.7619 | L1: 0.3192 | SSIM: 0.5573 | Val Loss: 0.7620 | c_mean: 1454.5 | c_std: 56.7 | α_mean: 5.24 | LR: 1.00e-04 | Time: 276.3s
+  → Saved best model (val_loss=0.762013)
+Epoch 007/200 | Loss: 0.7580 | L1: 0.3189 | SSIM: 0.5608 | Val Loss: 0.7591 | c_mean: 1454.5 | c_std: 59.3 | α_mean: 4.56 | LR: 1.00e-04 | Time: 273.9s
+  → Saved best model (val_loss=0.759097)
+Epoch 008/200 | Loss: 0.7551 | L1: 0.3187 | SSIM: 0.5635 | Val Loss: 0.7562 | c_mean: 1453.9 | c_std: 60.6 | α_mean: 4.01 | LR: 9.99e-05 | Time: 275.6s
+  → Saved best model (val_loss=0.756180)
+Epoch 009/200 | Loss: 0.7535 | L1: 0.3184 | SSIM: 0.5649 | Val Loss: 0.7544 | c_mean: 1453.6 | c_std: 60.7 | α_mean: 3.60 | LR: 9.99e-05 | Time: 275.2s
+  → Saved best model (val_loss=0.754415)
+  → Saved checkpoint epoch_009.pt
+Epoch 010/200 | Loss: 0.7522 | L1: 0.3180 | SSIM: 0.5658 | Val Loss: 0.7534 | c_mean: 1454.0 | c_std: 61.1 | α_mean: 3.26 | LR: 9.98e-05 | Time: 273.8s
+  → Saved best model (val_loss=0.753420)
