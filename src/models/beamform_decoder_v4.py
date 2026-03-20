@@ -194,8 +194,12 @@ class DifferentiableBeamformerV4(nn.Module):
 
     def _log_compress(self, envelope: torch.Tensor) -> torch.Tensor:
         """
-        dB log compression matching GT convention:
-        20·log10(envelope) → clip to [-dynamic_range_db, 0] → normalize to [0, 1]
+        Log compression EXACTLY matching GT convention (regenerate_gt_bmode.py):
+        log_env = ln(envelope + eps)
+        bmode = (log_env - min) / (max - min)   → [0, 1]
+        
+        MUST use natural log (ln), NOT 20·log10.
+        MUST use per-sample min-max, NOT clip-and-shift.
         
         Args:
             envelope: [B, H, W]
@@ -203,18 +207,18 @@ class DifferentiableBeamformerV4(nn.Module):
             compressed: [B, H, W] in [0, 1]
         """
         B = envelope.shape[0]
-        env_flat = envelope.reshape(B, -1)
         
-        # Normalize by per-sample max for dB computation
-        max_val = env_flat.max(dim=1, keepdim=True)[0].clamp(min=self.eps)
-        env_norm = env_flat / max_val
+        # Natural log (matching GT's np.log)
+        log_env = torch.log(envelope + self.eps)
         
-        # dB scale: 20·log10
-        db = 20.0 * torch.log10(env_norm + self.eps)
+        # Per-sample min-max normalization (matching GT's min-max)
+        log_flat = log_env.reshape(B, -1)
+        log_min = log_flat.min(dim=1, keepdim=True)[0]
+        log_max = log_flat.max(dim=1, keepdim=True)[0]
         
-        # Clip to dynamic range and normalize to [0, 1]
-        db_clipped = db.clamp(min=-self.dynamic_range_db, max=0.0)
-        compressed = (db_clipped + self.dynamic_range_db) / self.dynamic_range_db
+        # Avoid division by zero
+        denom = (log_max - log_min).clamp(min=1e-8)
+        compressed = (log_flat - log_min) / denom
         
         return compressed.reshape_as(envelope)
 
