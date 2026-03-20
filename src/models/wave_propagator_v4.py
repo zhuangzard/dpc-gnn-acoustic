@@ -43,7 +43,7 @@ class AcousticLeapfrogV4(nn.Module):
     def __init__(self, nx: int = 256, ny: int = 256,
                  dx: float = 2.34e-4, dt: float = 2.0e-8,
                  n_steps: int = 200, pml_width: int = 20,
-                 n_elements: int = 128, checkpoint_every: int = 50,
+                 n_elements: int = 128, checkpoint_every: int = 200,
                  c_ref: float = 2000.0):
         """
         c_ref MUST be c_max (not c_mean). When c_local > c_ref, kappa
