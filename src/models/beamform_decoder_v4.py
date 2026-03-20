@@ -62,38 +62,39 @@ class DifferentiableBeamformerV4(nn.Module):
         """
         Compute the delay table for DAS beamforming.
         
-        Element positions use V4's coordinate system.
-        Pixel grid uses GT's FOV for alignment with GT B-mode.
+        CRITICAL: Element positions and pixel grid must EXACTLY match
+        the GT beamformer (regenerate_gt_bmode.py::das_beamform_numpy).
+        
+        GT convention (256×256 grid, dx=2.34e-4, pml=20):
+          - n_elem = min(128, active_width) = 128 (since 256-40=216 > 128)
+          - start_col = (256 - 128) // 2 = 64
+          - elem_lateral = linspace(64*dx, 191*dx, 128)
+          - sensor_row = pml + 1 = 21
+          - pixel_lateral = same as elem_lateral
+          - pixel_axial = linspace(sensor_row*dx, (256-pml)*dx, 128)
         """
         pml = self.pml_size
         G = self.grid_size
         dx = self.dx
         
-        # Element positions in V4 coordinates
-        # Must match wave_propagator_v4's sensor_x and transducer_row
-        transducer_row = pml + 1  # row 21 in 256-grid
-        active_start = pml  # grid index 20
-        active_end = G - pml - 1  # grid index 235
+        # Element positions — MUST match GT's convention
+        # GT: start_col = (G - n_elements) // 2, elements at start_col to start_col+n_elements-1
+        transducer_row = pml + 1  # row 21
+        start_col = (G - self.n_elements) // 2  # = 64 for 256-grid, 128 elements
         
-        elem_lateral = torch.linspace(active_start * dx, active_end * dx,
+        elem_lateral = torch.linspace(start_col * dx,
+                                       (start_col + self.n_elements - 1) * dx,
                                        self.n_elements, device=device, dtype=dtype)
-        elem_axial = transducer_row * dx  # V4 sensor depth
+        elem_axial = transducer_row * dx
 
-        # Pixel grid uses GT's FOV to ensure spatial alignment
-        # GT lateral: gt_pml*gt_dx to (gt_G-gt_pml-1)*gt_dx
-        # GT axial: (gt_pml+1)*gt_dx to (gt_G-gt_pml)*gt_dx
-        gt_dx = self.gt_dx
-        gt_G = self.gt_grid_size
-        gt_pml = self.gt_pml
-        gt_active_width = gt_G - 2 * gt_pml
-        gt_n_elem = min(128, gt_active_width)
-        gt_start_col = (gt_G - gt_n_elem) // 2
-        
-        px = torch.linspace(gt_start_col * gt_dx,
-                             (gt_start_col + gt_n_elem - 1) * gt_dx,
+        # Pixel grid — MUST match GT's convention
+        # Lateral: same range as elements
+        px = torch.linspace(start_col * dx,
+                             (start_col + self.n_elements - 1) * dx,
                              self.image_w, device=device, dtype=dtype)
-        axial_start = (gt_pml + 1) * gt_dx  # GT sensor depth
-        axial_end = (gt_G - gt_pml) * gt_dx
+        # Axial: from sensor depth to bottom of active region (excluding bottom PML)
+        axial_start = transducer_row * dx
+        axial_end = (G - pml) * dx
         py = torch.linspace(axial_start, axial_end,
                              self.image_h, device=device, dtype=dtype)
 

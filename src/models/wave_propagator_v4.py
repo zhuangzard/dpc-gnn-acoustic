@@ -97,7 +97,10 @@ class AcousticLeapfrogV4(nn.Module):
         self.transducer_row = pml_width + 1
 
         # --- Sensor/source lateral positions ---
-        sensor_x = torch.linspace(pml_width, nx - pml_width - 1, n_elements).long()
+        # MUST match GT convention: start_col = (G - n_elements) // 2
+        # For 256-grid, 128 elements: cols 64 to 191
+        start_col = (nx - n_elements) // 2  # = 64
+        sensor_x = torch.linspace(start_col, start_col + n_elements - 1, n_elements).long()
         self.register_buffer('sensor_x', sensor_x)
         self.register_buffer('source_x', sensor_x)
 
