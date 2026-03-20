@@ -230,6 +230,33 @@ def train(config: dict, resume_path: str = None):
     print(f"AMP: {use_amp}, Grad clip: {grad_clip}")
     print(f"{'='*80}\n")
 
+    # === MANDATORY GRADIENT SANITY CHECK ===
+    # Catches: in-place ops, clamp killing grads, detached tensors, etc.
+    # Must pass before any training begins. Never skip this.
+    print("Running gradient sanity check...")
+    model.train()
+    _ct_check, _gt_check = next(iter(train_loader))
+    _ct_check, _gt_check = _ct_check[:1].to(device), _gt_check[:1].to(device)
+    optimizer.zero_grad()
+    _out = model(_ct_check)
+    _loss_check, _ = loss_fn(_out['bmode'], _gt_check, _out)
+    _loss_check.backward()
+    _grad_norm = sum(p.grad.norm().item()**2 for p in model.parameters()
+                     if p.grad is not None) ** 0.5
+    _n_with_grad = sum(1 for p in model.parameters()
+                       if p.grad is not None and p.grad.norm().item() > 0)
+    _n_total = sum(1 for p in model.parameters())
+    print(f"  grad_norm={_grad_norm:.4e}, params_with_grad={_n_with_grad}/{_n_total}")
+    if _grad_norm == 0 or _n_with_grad == 0:
+        raise RuntimeError(
+            f"FATAL: grad_norm=0! No parameters receiving gradients. "
+            f"Check: (1) in-place ops in propagator, (2) clamp killing grads, "
+            f"(3) source injection overwriting sensor positions every step. "
+            f"Training would be useless — aborting."
+        )
+    optimizer.zero_grad()  # clean up
+    print(f"  ✅ Gradient check passed\n")
+
     for epoch in range(start_epoch, epochs):
         t_start = time.time()
 
@@ -257,8 +284,13 @@ def train(config: dict, resume_path: str = None):
                 outputs = model(ct)
                 loss, metrics = loss_fn(outputs['bmode'], gt_bmode, outputs)
                 loss.backward()
-                nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                _gn = nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
                 optimizer.step()
+
+            # Track grad norm for monitoring
+            if not hasattr(train_metrics_accum, '_grad_sum'):
+                train_metrics_accum['_grad_norm_sum'] = 0.0
+            train_metrics_accum['_grad_norm_sum'] = train_metrics_accum.get('_grad_norm_sum', 0.0) + _gn.item()
 
             # Accumulate metrics
             for k, v in metrics.items():
@@ -302,6 +334,7 @@ def train(config: dict, resume_path: str = None):
             f"c_mean: {train_metrics.get('c_mean', 0):.1f} | "
             f"c_std: {train_metrics.get('c_std', 0):.1f} | "
             f"α_mean: {train_metrics.get('alpha_mean', 0):.2f} | "
+            f"grad: {train_metrics_accum.get('_grad_norm_sum', 0) / max(1, n_train_batches):.2e} | "
             f"LR: {current_lr:.2e} | "
             f"Time: {elapsed:.1f}s"
         )
