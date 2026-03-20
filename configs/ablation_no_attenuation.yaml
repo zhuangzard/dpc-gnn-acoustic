@@ -1,0 +1,33 @@
+# Ablation A7: Without attenuation (α fixed to 0)
+# GNN still predicts α but it's zeroed before propagation
+# Expected: less realistic tissue modeling → slightly lower SSIM
+
+model:
+  hidden_dim: 96
+  n_mp_layers: 5
+  k_local: 8
+  c_min: 1400
+  c_max: 1700
+  fix_alpha_zero: true     # ← KEY: zero out attenuation
+
+physics:
+  dx: 2.34e-4
+  dt: 2.0e-8
+  n_time_steps: 1754
+  pml_width: 20
+  c0: 1540.0
+
+data:
+  data_dir: data/kwave_gt
+  grid_resolution: 256
+
+training:
+  epochs: 200
+  lr: 1.0e-4
+  weight_decay: 1.0e-5
+  batch_size: 1
+  warmup_epochs: 5
+  patience: 30
+  grad_clip: 1.0
+  use_amp: false
+  checkpoint_dir: checkpoints_abl_no_attenuation

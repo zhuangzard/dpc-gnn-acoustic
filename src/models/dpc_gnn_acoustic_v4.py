@@ -257,6 +257,9 @@ class DPCGNNAcousticV4(nn.Module):
         model_cfg = config.get('model', {})
         physics_cfg = config.get('physics', {})
 
+        # --- Ablation flag: fix alpha to zero ---
+        self.fix_alpha_zero = model_cfg.get('fix_alpha_zero', False)
+
         # --- GNN Encoder (only learnable component) ---
         self.encoder = GNNEncoder(
             hidden_dim=model_cfg.get('hidden_dim', 96),
@@ -302,6 +305,10 @@ class DPCGNNAcousticV4(nn.Module):
         """
         # 1. GNN encoder: CT → tissue properties
         c, alpha, sigma = self.encoder(ct)
+
+        # Ablation A7: zero out attenuation if configured
+        if self.fix_alpha_zero:
+            alpha = torch.zeros_like(alpha)
 
         # 2. Generate source if not provided
         if source is None:
