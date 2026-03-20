@@ -3,7 +3,7 @@
 DPC-GNN-Acoustic V4: Material Field Visualization
 
 Generates publication-quality visualization of learned material fields:
-  c_table (physics prior) | c_residual (GNN correction) | c_total | α (attenuation) | σ (reflectivity)
+  c_table (physics prior) | c_residual (GNN correction) | c_total | α (attenuation)
 
 Usage:
     python scripts/visualize_materials.py --checkpoint checkpoints_v4/best.pt
@@ -28,7 +28,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.models.dpc_gnn_acoustic_v4 import DPCGNNAcousticV4, hu_to_speed_of_sound
+from src.models.dpc_gnn_acoustic_v4 import DPCGNNAcousticV4, ct_to_speed_of_sound
 
 
 # ---------------------------------------------------------------------------
@@ -80,13 +80,13 @@ def extract_material_fields(model, ct_tensor, device):
     ct = ct_tensor.to(device)
 
     with torch.no_grad():
-        # Get c, alpha, sigma from encoder
-        c_total, alpha, sigma = model.encoder(ct)
+        # Get c, alpha from encoder (σ removed in V4 rebuild)
+        c_total, alpha = model.encoder(ct)
 
         # Extract c_table (physics prior) and c_residual
         c_min = model.encoder.c_min
         c_max = model.encoder.c_max
-        c_table = hu_to_speed_of_sound(ct, c_min, c_max)
+        c_table = ct_to_speed_of_sound(ct, c_min, c_max)
 
         # c_residual = c_total - c_table (the GNN's learned correction)
         c_residual = c_total - c_table
@@ -97,7 +97,6 @@ def extract_material_fields(model, ct_tensor, device):
         'c_residual': c_residual[0, 0].cpu().numpy(),
         'c_total': c_total[0, 0].cpu().numpy(),
         'alpha': alpha[0, 0].cpu().numpy(),
-        'sigma': sigma[0, 0].cpu().numpy(),
     }
 
     # Statistics
@@ -112,8 +111,6 @@ def extract_material_fields(model, ct_tensor, device):
         'c_residual_max': c_residual.max().item(),
         'alpha_mean': alpha.mean().item(),
         'alpha_max': alpha.max().item(),
-        'sigma_mean': sigma.mean().item(),
-        'sigma_std': sigma.std().item(),
     }
 
     return fields, stats
@@ -136,7 +133,7 @@ def visualize_materials(fields, stats, sample_name, save_path, epoch=None):
     """
     Generate 2-row material field visualization.
     Row 1: CT Input | c_table (prior) | c_residual (correction) | c_total
-    Row 2: α (attenuation) | σ (reflectivity) | stats text
+    Row 2: α (attenuation) | stats text
     """
     fig = plt.figure(figsize=(20, 10))
     gs = GridSpec(2, 4, figure=fig, hspace=0.3, wspace=0.35)
@@ -181,14 +178,8 @@ def visualize_materials(fields, stats, sample_name, save_path, epoch=None):
     ax.set_title(r'$\alpha$ (attenuation)', fontsize=11)
     add_colorbar(ax, im, label='Np/m')
 
-    # Sigma (reflectivity)
-    ax = fig.add_subplot(gs[1, 1])
-    im = ax.imshow(fields['sigma'], cmap='plasma', aspect='equal', vmin=0, vmax=1)
-    ax.set_title(r'$\sigma$ (reflectivity)', fontsize=11)
-    add_colorbar(ax, im)
-
     # Histogram of c_residual
-    ax = fig.add_subplot(gs[1, 2])
+    ax = fig.add_subplot(gs[1, 1])
     ax.hist(fields['c_residual'].flatten(), bins=80, color='steelblue', alpha=0.7, edgecolor='navy')
     ax.axvline(x=0, color='red', linestyle='--', linewidth=1.5)
     ax.set_title(r'$c_{residual}$ distribution', fontsize=11)
@@ -196,7 +187,7 @@ def visualize_materials(fields, stats, sample_name, save_path, epoch=None):
     ax.set_ylabel('Count')
 
     # Statistics text box
-    ax = fig.add_subplot(gs[1, 3])
+    ax = fig.add_subplot(gs[1, 2])
     ax.axis('off')
     stats_text = (
         f"Material Field Statistics{epoch_str}\n"
@@ -208,10 +199,7 @@ def visualize_materials(fields, stats, sample_name, save_path, epoch=None):
         f"  Res range:[{stats['c_residual_min']:.1f}, {stats['c_residual_max']:.1f}] m/s\n\n"
         f"Attenuation (α):\n"
         f"  Mean:     {stats['alpha_mean']:.2f} Np/m\n"
-        f"  Max:      {stats['alpha_max']:.2f} Np/m\n\n"
-        f"Reflectivity (σ):\n"
-        f"  Mean:     {stats['sigma_mean']:.4f}\n"
-        f"  Std:      {stats['sigma_std']:.4f}"
+        f"  Max:      {stats['alpha_max']:.2f} Np/m"
     )
     ax.text(0.05, 0.95, stats_text, transform=ax.transAxes,
             fontsize=9, fontfamily='monospace', verticalalignment='top',
@@ -282,7 +270,6 @@ def main():
               f"[{stats['c_total_min']:.1f}, {stats['c_total_max']:.1f}]")
         print(f"  c_residual: {stats['c_residual_mean']:.2f} ± {stats['c_residual_std']:.2f} m/s")
         print(f"  alpha: mean={stats['alpha_mean']:.2f}, max={stats['alpha_max']:.2f} Np/m")
-        print(f"  sigma: mean={stats['sigma_mean']:.4f} ± {stats['sigma_std']:.4f}")
 
     print(f"\nAll figures saved to: {output_dir}/")
 

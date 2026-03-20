@@ -45,7 +45,7 @@ class TimedDPCGNNAcousticV4(DPCGNNAcousticV4):
 
         # 1. GNN Encoder
         t0 = time.perf_counter()
-        c, alpha, sigma = self.encoder(ct)
+        c, alpha = self.encoder(ct)
         torch.cuda.synchronize()
         t_encoder = (time.perf_counter() - t0) * 1000.0
 
@@ -54,7 +54,7 @@ class TimedDPCGNNAcousticV4(DPCGNNAcousticV4):
 
         # 3. Leapfrog Propagation
         t1 = time.perf_counter()
-        sensor_data = self.propagator(c, alpha, sigma, source)
+        sensor_data = self.propagator(c, alpha, source)
         torch.cuda.synchronize()
         t_leapfrog = (time.perf_counter() - t1) * 1000.0
 
@@ -68,7 +68,7 @@ class TimedDPCGNNAcousticV4(DPCGNNAcousticV4):
 
         outputs = {
             'bmode': bmode, 'c': c, 'alpha': alpha,
-            'sigma': sigma, 'sensor_data': sensor_data,
+            'sensor_data': sensor_data,
         }
         timing = {
             'encoder_ms': t_encoder,

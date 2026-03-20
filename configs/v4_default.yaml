@@ -1,6 +1,6 @@
 # DPC-GNN-Acoustic V4 Default Configuration
 # ============================================
-# CT → GNN Encoder → (c, α, σ) → Leapfrog → DAS Beamformer → B-mode
+# CT → GNN Encoder → (c, α) → Leapfrog → DAS Beamformer → B-mode
 # Loss: L1 + (1 - SSIM) vs k-Wave GT B-mode
 
 model:
