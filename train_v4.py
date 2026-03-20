@@ -217,7 +217,8 @@ def train(config: dict, resume_path: str = None):
         print(f"Resuming from {resume_path}")
         ckpt = torch.load(resume_path, map_location=device, weights_only=False)
         model.load_state_dict(ckpt['model_state_dict'], strict=False)
-        optimizer.load_state_dict(ckpt['optimizer_state_dict'])
+        if 'optimizer_state_dict' in ckpt:
+            optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_epoch = ckpt.get('epoch', 0) + 1
         best_val_loss = ckpt.get('best_val_loss', float('inf'))
         print(f"Resumed at epoch {start_epoch}, best_val_loss={best_val_loss:.6f}")
