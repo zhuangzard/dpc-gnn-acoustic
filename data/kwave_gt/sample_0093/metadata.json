@@ -1,0 +1,24 @@
+{
+  "scenario": "A_homogeneous_point",
+  "c_base": 1520.5432902465514,
+  "rho_base": 1000.0,
+  "point_source": [
+    203,
+    48
+  ],
+  "Nt": 1686,
+  "dt": 4.624169561696533e-08,
+  "n_sensors": 128,
+  "frequency": 2000000.0,
+  "n_elements": 128,
+  "domain_size": [
+    0.06,
+    0.06
+  ],
+  "grid_size": [
+    256,
+    256
+  ],
+  "dx": 0.000234375,
+  "pml_size": 20
+}

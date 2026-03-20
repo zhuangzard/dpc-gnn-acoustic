@@ -28,6 +28,7 @@ class DifferentiableBeamformerV4(nn.Module):
     def __init__(self, n_elements: int = 128, c_ref: float = 1540.0,
                  image_size: tuple = (128, 128),
                  dx: float = 2.34e-4, dt: float = 2.0e-8,
+                 grid_size: int = 256, pml_size: int = 20,
                  eps: float = 1e-6):
         super().__init__()
         self.n_elements = n_elements
@@ -35,6 +36,8 @@ class DifferentiableBeamformerV4(nn.Module):
         self.image_h, self.image_w = image_size
         self.dx = dx
         self.dt = dt
+        self.grid_size = grid_size
+        self.pml_size = pml_size
         self.eps = eps
 
         # Pre-compute pixel-to-element delay indices
@@ -53,28 +56,44 @@ class DifferentiableBeamformerV4(nn.Module):
         Elements are along y=0 (top row), uniformly spaced.
         """
         # Physical extent of imaging region
-        # Image covers the interior (excluding PML)
-        pml = 20  # PML width in grid points
-        phys_width = (self.image_w) * self.dx  # physical width
-        phys_depth = (self.image_h) * self.dx  # physical depth
+        # Matches GT's regenerate_gt_bmode.py coordinate convention exactly
+        pml = self.pml_size
+        G = self.grid_size  # 256 for V4 training grid
+        
+        # Sensor row in simulation grid (k-Wave convention)
+        sensor_row = pml + 1
+        
+        # Element lateral positions (k-Wave col direction)
+        # k-Wave: smask[sensor_row, start_col:start_col+n_elem]
+        active_width = G - 2 * pml  # lateral active region in grid points
+        n_elem_actual = min(self.n_elements, active_width)
+        start_col = (G - n_elem_actual) // 2
+        
+        elem_lateral = torch.linspace(start_col * self.dx,
+                                       (start_col + n_elem_actual - 1) * self.dx,
+                                       self.n_elements, device=device, dtype=dtype)
+        # Element axial position = sensor depth (NOT zero!)
+        elem_axial = torch.full((self.n_elements,), sensor_row * self.dx,
+                                device=device, dtype=dtype)
 
-        # Element positions along x-axis (at y=0)
-        elem_x = torch.linspace(pml * self.dx, (256 - pml) * self.dx,
-                                 self.n_elements, device=device, dtype=dtype)
-        elem_y = torch.zeros(self.n_elements, device=device, dtype=dtype)
-
-        # Pixel positions
-        px = torch.linspace(pml * self.dx, (256 - pml) * self.dx,
+        # Pixel positions — must match GT exactly
+        # Lateral: same as element range
+        px = torch.linspace(start_col * self.dx,
+                             (start_col + n_elem_actual - 1) * self.dx,
                              self.image_w, device=device, dtype=dtype)
-        py = torch.linspace(0, phys_depth, self.image_h, device=device, dtype=dtype)
+        # Axial: from sensor depth to bottom of active region
+        axial_start = sensor_row * self.dx
+        axial_end = (G - pml) * self.dx
+        py = torch.linspace(axial_start, axial_end,
+                             self.image_h, device=device, dtype=dtype)
 
         # Grid of pixel positions [H, W]
         grid_y, grid_x = torch.meshgrid(py, px, indexing='ij')
 
         # Distance from each pixel to each element
         # [H, W, 1] - [1, 1, n_elements]
-        dist_x = grid_x.unsqueeze(-1) - elem_x.reshape(1, 1, -1)
-        dist_y = grid_y.unsqueeze(-1) - elem_y.reshape(1, 1, -1)
+        dist_x = grid_x.unsqueeze(-1) - elem_lateral.reshape(1, 1, -1)
+        dist_y = grid_y.unsqueeze(-1) - elem_axial.reshape(1, 1, -1)
         distance = torch.sqrt(dist_x ** 2 + dist_y ** 2 + 1e-12)
 
         # Convert to sample index (delay in samples)
@@ -139,20 +158,23 @@ class DifferentiableBeamformerV4(nn.Module):
         Compute analytic signal envelope via FFT-based Hilbert transform.
         Applied along the depth (H) dimension.
         
+        Uses full FFT (not rfft) to preserve complex analytic signal,
+        matching scipy.signal.hilbert behavior exactly.
+        
         Args:
             rf: [B, H, W] RF image
         Returns:
             envelope: [B, H, W] envelope
         """
         B, H, W = rf.shape
-
-        # FFT along depth dimension
-        Rf = torch.fft.rfft(rf, dim=1)
-
-        # Build Hilbert multiplier: h[0]=1, h[1..N/2-1]=2, h[N/2]=1, rest=0
         N = H
-        n_rfft = Rf.shape[1]
-        h = torch.zeros(n_rfft, device=rf.device, dtype=rf.dtype)
+
+        # Full FFT along depth dimension (complex output)
+        Rf = torch.fft.fft(rf, dim=1)
+
+        # Build Hilbert multiplier for analytic signal
+        # h[0]=1, h[1..N/2-1]=2, h[N/2]=1 (if N even), rest=0
+        h = torch.zeros(N, device=rf.device, dtype=rf.dtype)
         h[0] = 1.0
         if N % 2 == 0:
             h[N // 2] = 1.0
@@ -160,13 +182,11 @@ class DifferentiableBeamformerV4(nn.Module):
         else:
             h[1:(N + 1) // 2] = 2.0
 
-        # Apply multiplier
-        analytic_fft = Rf * h.reshape(1, -1, 1)
-        analytic = torch.fft.irfft(analytic_fft, n=H, dim=1)
+        # Apply multiplier and inverse FFT → complex analytic signal
+        analytic = torch.fft.ifft(Rf * h.reshape(1, -1, 1), dim=1)
 
-        # Envelope = |analytic signal|
-        # Use rf as real part, analytic as the full complex reconstruction
-        envelope = torch.sqrt(rf ** 2 + analytic ** 2 + self.eps)
+        # Envelope = |analytic signal| (complex magnitude)
+        envelope = analytic.abs() + self.eps
         return envelope
 
     def _log_compress(self, envelope: torch.Tensor) -> torch.Tensor:
