@@ -108,6 +108,21 @@ class AcousticPropagatorV5(nn.Module):
         self.register_buffer("kx_2d", kx_2d)
         self.register_buffer("ky_2d", ky_2d)
 
+        # --- Staggered grid shift factors (k-Wave ddx_k_shift_pos/neg) ---
+        # k-Wave uses shifted spectral derivatives for staggered grid:
+        #   ddx_k_shift_pos = 1j*kx * exp(+1j*kx*dx/2)  (velocity: p→u, forward stagger)
+        #   ddx_k_shift_neg = 1j*kx * exp(-1j*kx*dx/2)  (density: u→rho, backward stagger)
+        # These are COMPLEX tensors
+        shift_pos_x = torch.exp(1j * kx_1d * dx / 2.0)[:, None].expand(nx, ny)  # [nx, ny]
+        shift_neg_x = torch.exp(-1j * kx_1d * dx / 2.0)[:, None].expand(nx, ny)
+        shift_pos_y = torch.exp(1j * ky_1d * dx / 2.0)[None, :].expand(nx, ny)  # [nx, ny]
+        shift_neg_y = torch.exp(-1j * ky_1d * dx / 2.0)[None, :].expand(nx, ny)
+
+        self.register_buffer("shift_pos_x", shift_pos_x)
+        self.register_buffer("shift_neg_x", shift_neg_x)
+        self.register_buffer("shift_pos_y", shift_pos_y)
+        self.register_buffer("shift_neg_y", shift_neg_y)
+
         # --- Per-axis kappa correction (unnormalized sinc) ---
         # κ_x[kx] = sinc(c_ref * |kx| * dt / 2)  with sinc(x) = sin(x)/x
         arg_x = c_ref * kx_1d.abs() * dt / 2.0  # [nx]
@@ -210,23 +225,23 @@ class AcousticPropagatorV5(nn.Module):
         # 2. FFT of pressure
         p_k = torch.fft.fft2(p)
 
-        # 3. Velocity update with kappa correction and multiplicative PML
-        #    dp_dx = ifft2(kappa_x * 1j * kx * p_k).real
-        #    ux_sgx = pml_x_sgx * (pml_x_sgx * ux_sgx - dt / rho0_sgx * dp_dx)
-        dp_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * p_k).real
-        dp_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * p_k).real
+        # 3. Velocity update with kappa correction, staggered shift, and multiplicative PML
+        #    k-Wave: dp_dx = ifft2(kappa_x * ddx_k_shift_pos * p_k).real
+        #    where ddx_k_shift_pos = 1j*kx * exp(+1j*kx*dx/2)
+        dp_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * self.shift_pos_x * p_k).real
+        dp_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * self.shift_pos_y * p_k).real
 
         ux_sgx = self.pml_x_sgx * (self.pml_x_sgx * ux_sgx - dt / rho0_sgx * dp_dx)
         uy_sgy = self.pml_y_sgy * (self.pml_y_sgy * uy_sgy - dt / rho0_sgy * dp_dy)
 
-        # 4. Density update: split-field with directional PML
-        #    dux_dx = ifft2(kappa_x * 1j * kx * fft2(ux_sgx)).real
-        #    rhox = pml_x * (pml_x * rhox - dt * rho0 * dux_dx)
+        # 4. Density update: split-field with directional PML and backward stagger shift
+        #    k-Wave: dux_dx = ifft2(kappa_x * ddx_k_shift_neg * fft2(ux_sgx)).real
+        #    where ddx_k_shift_neg = 1j*kx * exp(-1j*kx*dx/2)
         ux_k = torch.fft.fft2(ux_sgx)
         uy_k = torch.fft.fft2(uy_sgy)
 
-        dux_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * ux_k).real
-        duy_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * uy_k).real
+        dux_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * self.shift_neg_x * ux_k).real
+        duy_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * self.shift_neg_y * uy_k).real
 
         rhox = self.pml_x * (self.pml_x * rhox - dt * rho0 * dux_dx)
         rhoy = self.pml_y * (self.pml_y * rhoy - dt * rho0 * duy_dy)
