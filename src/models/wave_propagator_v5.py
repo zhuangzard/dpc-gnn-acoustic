@@ -1,28 +1,40 @@
 """
-AcousticPropagatorV5 — Velocity-pressure staggered-grid pseudo-spectral solver
-===============================================================================
+AcousticPropagatorV5 — k-Wave-compatible kspaceFirstOrder2D solver
+===================================================================
 
-k-Wave-compatible kspaceFirstOrder2D formulation with split-field PML,
-per-axis kappa correction, and physical attenuation.
+Exact reimplementation of k-Wave's kspaceFirstOrder2D algorithm.
+
+State variables: ux_sgx, uy_sgy, rhox, rhoy  (split-field density, NOT p)
 
 Physics equations (each time step):
-    u_x^{n+1} = PML_x · u_x^n  −  (dt/ρ) · F⁻¹{ κ_x · ik_x · F{p^n} }
-    u_y^{n+1} = PML_y · u_y^n  −  (dt/ρ) · F⁻¹{ κ_y · ik_y · F{p^n} }
-    p^{n+1}   = PML_p · p^n    −  ρc²·dt · F⁻¹{ ik_x · F{u_x^{n+1}} + ik_y · F{u_y^{n+1}} }
+    # Equation of state
+    p = c² · (rhox + rhoy)
 
-Per-axis kappa (unnormalized sinc for k-space correction):
-    κ_x[kx] = sinc(c_ref · |kx| · dt / 2)   where sinc(x) = sin(x)/x
-    κ_y[ky] = sinc(c_ref · |ky| · dt / 2)
+    # Velocity update (PML = exp(-σ·dt/2), applied twice multiplicatively)
+    dp_dx = F⁻¹{ κ_x · ik_x · F{p} }
+    dp_dy = F⁻¹{ κ_y · ik_y · F{p} }
+    ux_sgx = pml_x_sgx · (pml_x_sgx · ux_sgx − dt/ρ₀_sgx · dp_dx)
+    uy_sgy = pml_y_sgy · (pml_y_sgy · uy_sgy − dt/ρ₀_sgy · dp_dy)
 
-PML (split-field, directional, polynomial grading):
-    σ_x[i] = σ_max · ((pml_width − i) / pml_width)³   (x-boundaries)
-    σ_y[j] = σ_max · ((pml_width − j) / pml_width)³   (y-boundaries)
-    PML_x = (1 − σ_x·dt/2) / (1 + σ_x·dt/2)
-    PML_y = (1 − σ_y·dt/2) / (1 + σ_y·dt/2)
-    PML_p uses combined σ_x + σ_y
+    # Density update (split-field PML, directional)
+    dux_dx = F⁻¹{ κ_x · ik_x · F{ux_sgx} }
+    duy_dy = F⁻¹{ κ_y · ik_y · F{uy_sgy} }
+    rhox = pml_x · (pml_x · rhox − dt · ρ₀ · dux_dx)
+    rhoy = pml_y · (pml_y · rhoy − dt · ρ₀ · duy_dy)
 
-Source: Dirichlet on pressure during burst (mask-based for autograd).
-Sensor: Records pressure at transducer row.
+    # Source injection (Dirichlet into rhox/rhoy)
+    rhox[mask] = source_val / (2·c²)
+    rhoy[mask] = source_val / (2·c²)
+
+    # Recompute p and record sensor
+    p = c² · (rhox + rhoy)
+
+Key differences from previous V5:
+    - Split-field rhox/rhoy instead of monolithic p  (BUG 1 fix)
+    - exp(-σ·dt/2) PML applied twice, not Crank-Nicolson  (BUG 2 fix)
+    - No combined pressure PML; PML on rhox (x-only) and rhoy (y-only)  (BUG 3 fix)
+    - Staggered density interpolation (rho0_sgx, rho0_sgy)  (BUG 4 fix)
+    - Source injection into rhox/rhoy scaled by 1/(2c²)  (BUG 5 fix)
 
 Zero learnable parameters. Gradient checkpointing every 200 steps.
 """
@@ -36,9 +48,10 @@ from torch.utils.checkpoint import checkpoint
 
 
 class AcousticPropagatorV5(nn.Module):
-    """Velocity-pressure staggered-grid pseudo-spectral acoustic wave propagator.
+    """k-Wave-compatible kspaceFirstOrder2D acoustic wave propagator.
 
-    Drop-in replacement for wave_propagator_v4.py with k-Wave-compatible physics.
+    Drop-in replacement with corrected split-field PML, staggered density,
+    and proper source injection.
 
     Parameters
     ----------
@@ -86,10 +99,9 @@ class AcousticPropagatorV5(nn.Module):
 
         # --- Wavenumber grids ---
         kx_1d = 2.0 * math.pi * torch.fft.fftfreq(nx, d=dx)  # [nx]
-        ky_1d = 2.0 * math.pi * torch.fft.fftfreq(ny, d=dy if (dy := dx) else dx)  # [ny]
+        ky_1d = 2.0 * math.pi * torch.fft.fftfreq(ny, d=dx)  # [ny]
 
-        # 2D wavenumber grids for spectral derivatives
-        # kx varies along dim 0 (rows), ky along dim 1 (cols)
+        # 2D wavenumber grids: kx varies along dim -2 (rows), ky along dim -1 (cols)
         kx_2d = kx_1d[:, None].expand(nx, ny)  # [nx, ny]
         ky_2d = ky_1d[None, :].expand(nx, ny)  # [nx, ny]
 
@@ -111,161 +123,171 @@ class AcousticPropagatorV5(nn.Module):
             torch.sin(arg_y) / arg_y,
         )
 
-        # Broadcast to 2D for velocity updates
+        # Broadcast to 2D
         kappa_x_2d = kappa_x_1d[:, None].expand(nx, ny)  # [nx, ny]
         kappa_y_2d = kappa_y_1d[None, :].expand(nx, ny)  # [nx, ny]
 
         self.register_buffer("kappa_x", kappa_x_2d)
         self.register_buffer("kappa_y", kappa_y_2d)
 
-        # --- PML coefficients ---
+        # --- PML coefficients: exp(-sigma * dt / 2) ---
+        # k-Wave uses multiplicative PML: field = pml * (pml * field - dt * rhs)
+        # where pml = exp(-sigma * dt / 2), applied TWICE per step
         sigma_max = c_ref / (pml_width * dx) * 3.0
 
-        # Build 1D sigma profiles
+        # Build 1D sigma profiles (cubic polynomial grading)
+        # sigma at grid points (for density/pressure updates)
         sigma_x_1d = torch.zeros(nx)
         sigma_y_1d = torch.zeros(ny)
 
+        # sigma at staggered positions (half-cell shifted, for velocity updates)
+        sigma_x_sgx_1d = torch.zeros(nx)
+        sigma_y_sgy_1d = torch.zeros(ny)
+
         for i in range(pml_width):
+            # Grid-point sigma
             val = sigma_max * ((pml_width - i) / pml_width) ** 3
             sigma_x_1d[i] = val
             sigma_x_1d[nx - 1 - i] = val
             sigma_y_1d[i] = val
             sigma_y_1d[ny - 1 - i] = val
 
-        # PML Crank-Nicolson factors (separate numerator and denominator)
-        # Correct form: field_new = (num * field_old - dt*rhs) / den
-        # where num = (1 - σ·dt/2), den = (1 + σ·dt/2)
-        pml_num_x = (1.0 - sigma_x_1d * dt / 2.0)[:, None].expand(nx, ny)
-        pml_num_y = (1.0 - sigma_y_1d * dt / 2.0)[None, :].expand(nx, ny)
-        pml_inv_den_x = (1.0 / (1.0 + sigma_x_1d * dt / 2.0))[:, None].expand(nx, ny)
-        pml_inv_den_y = (1.0 / (1.0 + sigma_y_1d * dt / 2.0))[None, :].expand(nx, ny)
+            # Staggered-point sigma (half-cell offset)
+            # Left PML: stagger at (i + 0.5), so distance from boundary = pml_width - i - 0.5
+            val_sg_left = sigma_max * (max(0.0, pml_width - i - 0.5) / pml_width) ** 3
+            sigma_x_sgx_1d[i] = val_sg_left
+            sigma_y_sgy_1d[i] = val_sg_left
 
-        # Pressure PML: combined σ_x + σ_y
-        sigma_p_2d = sigma_x_1d[:, None] + sigma_y_1d[None, :]
-        pml_num_p = 1.0 - sigma_p_2d * dt / 2.0
-        pml_inv_den_p = 1.0 / (1.0 + sigma_p_2d * dt / 2.0)
+            # Right PML: stagger at (N-1-i + 0.5) = (N-0.5-i), distance = pml_width - i + 0.5
+            # But clamp to not exceed sigma_max range
+            val_sg_right = sigma_max * (min(pml_width, pml_width - i + 0.5) / pml_width) ** 3
+            sigma_x_sgx_1d[nx - 1 - i] = val_sg_right
+            sigma_y_sgy_1d[ny - 1 - i] = val_sg_right
 
-        self.register_buffer("pml_num_x", pml_num_x)
-        self.register_buffer("pml_num_y", pml_num_y)
-        self.register_buffer("pml_inv_den_x", pml_inv_den_x)
-        self.register_buffer("pml_inv_den_y", pml_inv_den_y)
-        self.register_buffer("pml_num_p", pml_num_p)
-        self.register_buffer("pml_inv_den_p", pml_inv_den_p)
+        # PML factors: exp(-sigma * dt / 2), broadcast to 2D
+        # For density updates (grid points)
+        pml_x_2d = torch.exp(-sigma_x_1d * dt / 2.0)[:, None].expand(nx, ny)  # [nx, ny]
+        pml_y_2d = torch.exp(-sigma_y_1d * dt / 2.0)[None, :].expand(nx, ny)  # [nx, ny]
 
-        # Keep combined ratio for backward compat
-        self.register_buffer("pml_x", pml_num_x * pml_inv_den_x)
-        self.register_buffer("pml_y", pml_num_y * pml_inv_den_y)
-        self.register_buffer("pml_p", pml_num_p * pml_inv_den_p)
+        # For velocity updates (staggered grid points)
+        pml_x_sgx_2d = torch.exp(-sigma_x_sgx_1d * dt / 2.0)[:, None].expand(nx, ny)  # [nx, ny]
+        pml_y_sgy_2d = torch.exp(-sigma_y_sgy_1d * dt / 2.0)[None, :].expand(nx, ny)  # [nx, ny]
+
+        self.register_buffer("pml_x", pml_x_2d)
+        self.register_buffer("pml_y", pml_y_2d)
+        self.register_buffer("pml_x_sgx", pml_x_sgx_2d)
+        self.register_buffer("pml_y_sgy", pml_y_sgy_2d)
 
         # Sensor column indices
         sensor_cols = torch.arange(self.element_start, self.element_end)
         self.register_buffer("sensor_cols", sensor_cols)
 
-    def _spectral_grad_x(self, field: torch.Tensor) -> torch.Tensor:
-        """Compute ∂field/∂x via spectral method: F⁻¹{ ik_x · F{field} }."""
-        F = torch.fft.fft2(field)
-        return torch.fft.ifft2(1j * self.kx_2d * F).real
-
-    def _spectral_grad_y(self, field: torch.Tensor) -> torch.Tensor:
-        """Compute ∂field/∂y via spectral method: F⁻¹{ ik_y · F{field} }."""
-        F = torch.fft.fft2(field)
-        return torch.fft.ifft2(1j * self.ky_2d * F).real
-
-    def _spectral_grad_x_kappa(self, field: torch.Tensor) -> torch.Tensor:
-        """Compute F⁻¹{ κ_x · ik_x · F{field} } for velocity-x update."""
-        F = torch.fft.fft2(field)
-        return torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * F).real
-
-    def _spectral_grad_y_kappa(self, field: torch.Tensor) -> torch.Tensor:
-        """Compute F⁻¹{ κ_y · ik_y · F{field} } for velocity-y update."""
-        F = torch.fft.fft2(field)
-        return torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * F).real
-
     def _single_step(
         self,
-        ux: torch.Tensor,
-        uy: torch.Tensor,
-        p: torch.Tensor,
+        ux_sgx: torch.Tensor,
+        uy_sgy: torch.Tensor,
+        rhox: torch.Tensor,
+        rhoy: torch.Tensor,
         c_sq: torch.Tensor,
-        rho: torch.Tensor,
-        rho_inv: torch.Tensor,
-        attenuation: torch.Tensor,
+        rho0: torch.Tensor,
+        rho0_sgx: torch.Tensor,
+        rho0_sgy: torch.Tensor,
         source_val: torch.Tensor,
         source_mask: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """One time step of the velocity-pressure update.
+        inv_2c_sq: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """One time step of the k-Wave kspaceFirstOrder2D algorithm.
 
         All operations are autograd-safe (no in-place ops).
+
+        Returns (ux_sgx, uy_sgy, rhox, rhoy, p)
         """
         dt = self.dt
 
-        # --- Velocity update (Crank-Nicolson PML) ---
-        # Correct form: ux_new = [(1-σ_x·dt/2)·ux - dt/ρ·∂p/∂x] / (1+σ_x·dt/2)
-        dp_dx_kappa = self._spectral_grad_x_kappa(p)
-        ux_new = (self.pml_num_x * ux - dt * rho_inv * dp_dx_kappa) * self.pml_inv_den_x
+        # 1. Equation of state: compute pressure from split density
+        p = c_sq * (rhox + rhoy)
 
-        dp_dy_kappa = self._spectral_grad_y_kappa(p)
-        uy_new = (self.pml_num_y * uy - dt * rho_inv * dp_dy_kappa) * self.pml_inv_den_y
+        # 2. FFT of pressure
+        p_k = torch.fft.fft2(p)
 
-        # --- Pressure update (kappa on BOTH derivatives, matching k-Wave) ---
-        # p_new = [(1-σ_p·dt/2)·p - ρc²·dt·∇·u] / (1+σ_p·dt/2)
-        # k-Wave applies kappa to divergence too: F⁻¹{κ_x·ik_x·F{u_x}} + F⁻¹{κ_y·ik_y·F{u_y}}
-        dux_dx = self._spectral_grad_x_kappa(ux_new)
-        duy_dy = self._spectral_grad_y_kappa(uy_new)
-        div_u = dux_dx + duy_dy
+        # 3. Velocity update with kappa correction and multiplicative PML
+        #    dp_dx = ifft2(kappa_x * 1j * kx * p_k).real
+        #    ux_sgx = pml_x_sgx * (pml_x_sgx * ux_sgx - dt / rho0_sgx * dp_dx)
+        dp_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * p_k).real
+        dp_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * p_k).real
 
-        p_new = (self.pml_num_p * p - rho * c_sq * dt * div_u) * self.pml_inv_den_p
+        ux_sgx = self.pml_x_sgx * (self.pml_x_sgx * ux_sgx - dt / rho0_sgx * dp_dx)
+        uy_sgy = self.pml_y_sgy * (self.pml_y_sgy * uy_sgy - dt / rho0_sgy * dp_dy)
 
-        # --- Physical attenuation (applied as exponential damping) ---
-        p_new = p_new * attenuation
+        # 4. Density update: split-field with directional PML
+        #    dux_dx = ifft2(kappa_x * 1j * kx * fft2(ux_sgx)).real
+        #    rhox = pml_x * (pml_x * rhox - dt * rho0 * dux_dx)
+        ux_k = torch.fft.fft2(ux_sgx)
+        uy_k = torch.fft.fft2(uy_sgy)
 
-        # --- Source injection (Dirichlet, mask-based for autograd) ---
-        # source_mask is 1.0 at source locations during burst, 0.0 otherwise
-        # p = source_val * mask + p_new * (1 - mask)
-        p_new = source_val * source_mask + p_new * (1.0 - source_mask)
+        dux_dx = torch.fft.ifft2(self.kappa_x * 1j * self.kx_2d * ux_k).real
+        duy_dy = torch.fft.ifft2(self.kappa_y * 1j * self.ky_2d * uy_k).real
 
-        return ux_new, uy_new, p_new
+        rhox = self.pml_x * (self.pml_x * rhox - dt * rho0 * dux_dx)
+        rhoy = self.pml_y * (self.pml_y * rhoy - dt * rho0 * duy_dy)
+
+        # 5. Source injection (Dirichlet, mask-based for autograd safety)
+        #    Inject into rhox and rhoy so that p = c^2*(rhox+rhoy) = source_val
+        #    => rhox = rhoy = source_val / (2 * c^2)
+        #    Using mask blending: rhox = src * mask + rhox * (1 - mask)
+        src_rho = source_val * inv_2c_sq  # [B, nx, ny] value to inject
+        rhox = src_rho * source_mask + rhox * (1.0 - source_mask)
+        rhoy = src_rho * source_mask + rhoy * (1.0 - source_mask)
+
+        # 6. Recompute p after source injection
+        p = c_sq * (rhox + rhoy)
+
+        return ux_sgx, uy_sgy, rhox, rhoy, p
 
     def _run_chunk(
         self,
-        ux: torch.Tensor,
-        uy: torch.Tensor,
-        p: torch.Tensor,
+        ux_sgx: torch.Tensor,
+        uy_sgy: torch.Tensor,
+        rhox: torch.Tensor,
+        rhoy: torch.Tensor,
         c_sq: torch.Tensor,
-        rho: torch.Tensor,
-        rho_inv: torch.Tensor,
-        attenuation: torch.Tensor,
+        rho0: torch.Tensor,
+        rho0_sgx: torch.Tensor,
+        rho0_sgy: torch.Tensor,
+        inv_2c_sq: torch.Tensor,
         source_chunk: torch.Tensor,
         source_mask_2d: torch.Tensor,
         chunk_start: int,
         chunk_size: int,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Run a chunk of time steps. Returns (ux, uy, p, sensor_chunk)."""
-        B = p.shape[0]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Run a chunk of time steps.
+
+        Returns (ux_sgx, uy_sgy, rhox, rhoy, sensor_chunk).
+        """
         sensor_list = []
 
         for local_t in range(chunk_size):
-            t = chunk_start + local_t
             # Source value at this time step: [B]
             src_val_t = source_chunk[:, local_t]  # [B]
 
-            # Build source mask: only inject when source is nonzero
-            # src_val_t: [B], source_mask_2d: [nx, ny] → broadcast
+            # Build effective source mask: only inject when source is nonzero
             is_active = (src_val_t.abs() > 0.0).float()  # [B]
             # source_val broadcast: [B, nx, ny]
             source_val = src_val_t[:, None, None] * source_mask_2d[None, :, :]
             # effective mask: [B, nx, ny]
             eff_mask = is_active[:, None, None] * source_mask_2d[None, :, :]
 
-            ux, uy, p = self._single_step(
-                ux, uy, p, c_sq, rho, rho_inv, attenuation, source_val, eff_mask
+            ux_sgx, uy_sgy, rhox, rhoy, p = self._single_step(
+                ux_sgx, uy_sgy, rhox, rhoy,
+                c_sq, rho0, rho0_sgx, rho0_sgy,
+                source_val, eff_mask, inv_2c_sq,
             )
 
             # Record sensor data: p at transducer_row, sensor columns
             sensor_list.append(p[:, self.transducer_row, self.sensor_cols])
 
         sensor_chunk = torch.stack(sensor_list, dim=-1)  # [B, n_elements, chunk_size]
-        return ux, uy, p, sensor_chunk
+        return ux_sgx, uy_sgy, rhox, rhoy, sensor_chunk
 
     def forward(
         self,
@@ -281,7 +303,9 @@ class AcousticPropagatorV5(nn.Module):
         c : Tensor [B, nx, ny]
             Sound speed map (m/s).
         alpha : Tensor [B, nx, ny]
-            Attenuation coefficient (Np/m). Applied as exp(-alpha * c * dt).
+            Attenuation coefficient. Set to 0 for lossless (matching k-Wave).
+            Currently unused in the lossless formulation; reserved for future
+            absorption models.
         source : Tensor [B, n_steps]
             Source signal (pressure amplitude at transducer elements).
         rho : Tensor [B, nx, ny] or None
@@ -298,7 +322,9 @@ class AcousticPropagatorV5(nn.Module):
 
         # Default density
         if rho is None:
-            rho = torch.full((B, self.nx, self.ny), 1000.0, device=device, dtype=dtype)
+            rho0 = torch.full((B, self.nx, self.ny), 1000.0, device=device, dtype=dtype)
+        else:
+            rho0 = rho
 
         # --- CFL check ---
         c_max = c.max().item()
@@ -309,21 +335,25 @@ class AcousticPropagatorV5(nn.Module):
                 f"c_max={c_max:.1f}, dt={self.dt:.2e}, dx={self.dx:.2e}"
             )
 
-        # Precompute fields
+        # --- Precompute fields ---
         c_sq = c * c  # [B, nx, ny]
-        rho_inv = 1.0 / rho  # [B, nx, ny]
+        inv_2c_sq = 1.0 / (2.0 * c_sq)  # [B, nx, ny] — for source injection scaling
 
-        # Attenuation per time step: exp(-alpha * c * dt)
-        attenuation = torch.exp(-alpha * c * self.dt)  # [B, nx, ny]
+        # Staggered density interpolation (k-Wave BUG 4 fix)
+        # rho0_sgx = 0.5 * (rho0 + roll(rho0, -1, dim=-2))  half-cell shift in x
+        # rho0_sgy = 0.5 * (rho0 + roll(rho0, -1, dim=-1))  half-cell shift in y
+        rho0_sgx = 0.5 * (rho0 + torch.roll(rho0, shifts=-1, dims=-2))
+        rho0_sgy = 0.5 * (rho0 + torch.roll(rho0, shifts=-1, dims=-1))
 
         # Source mask: 2D binary mask for transducer locations
         source_mask_2d = torch.zeros(self.nx, self.ny, device=device, dtype=dtype)
-        source_mask_2d[self.transducer_row, self.element_start : self.element_end] = 1.0
+        source_mask_2d[self.transducer_row, self.element_start:self.element_end] = 1.0
 
-        # Initialize fields
-        ux = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
-        uy = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
-        p = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
+        # Initialize state variables (split-field)
+        ux_sgx = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
+        uy_sgy = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
+        rhox = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
+        rhoy = torch.zeros(B, self.nx, self.ny, device=device, dtype=dtype)
 
         # --- Time-stepping with gradient checkpointing ---
         sensor_chunks = []
@@ -331,25 +361,33 @@ class AcousticPropagatorV5(nn.Module):
 
         for chunk_start in range(0, n_steps, chunk_size):
             actual_chunk_size = min(chunk_size, n_steps - chunk_start)
-            source_chunk = source[:, chunk_start : chunk_start + actual_chunk_size]
+            source_chunk = source[:, chunk_start:chunk_start + actual_chunk_size]
 
             if self.training and torch.is_grad_enabled():
-                # Use gradient checkpointing — wrap in a function
-                def run_ckpt(ux_, uy_, p_, c_sq_, rho_, rho_inv_, atten_, src_chunk_,
-                             _cs=chunk_start, _sz=actual_chunk_size):
+                # Use gradient checkpointing
+                def run_ckpt(
+                    ux_sgx_, uy_sgy_, rhox_, rhoy_,
+                    c_sq_, rho0_, rho0_sgx_, rho0_sgy_, inv_2c_sq_,
+                    src_chunk_,
+                    _cs=chunk_start, _sz=actual_chunk_size,
+                ):
                     return self._run_chunk(
-                        ux_, uy_, p_, c_sq_, rho_, rho_inv_, atten_,
+                        ux_sgx_, uy_sgy_, rhox_, rhoy_,
+                        c_sq_, rho0_, rho0_sgx_, rho0_sgy_, inv_2c_sq_,
                         src_chunk_, source_mask_2d, _cs, _sz,
                     )
 
-                ux, uy, p, sensor_chunk = checkpoint(
+                ux_sgx, uy_sgy, rhox, rhoy, sensor_chunk = checkpoint(
                     run_ckpt,
-                    ux, uy, p, c_sq, rho, rho_inv, attenuation, source_chunk,
+                    ux_sgx, uy_sgy, rhox, rhoy,
+                    c_sq, rho0, rho0_sgx, rho0_sgy, inv_2c_sq,
+                    source_chunk,
                     use_reentrant=False,
                 )
             else:
-                ux, uy, p, sensor_chunk = self._run_chunk(
-                    ux, uy, p, c_sq, rho, rho_inv, attenuation,
+                ux_sgx, uy_sgy, rhox, rhoy, sensor_chunk = self._run_chunk(
+                    ux_sgx, uy_sgy, rhox, rhoy,
+                    c_sq, rho0, rho0_sgx, rho0_sgy, inv_2c_sq,
                     source_chunk, source_mask_2d, chunk_start, actual_chunk_size,
                 )
 
@@ -378,9 +416,9 @@ if __name__ == "__main__":
     c_ref = 2000.0
     n_steps = 500
 
-    print("=" * 60)
-    print("AcousticPropagatorV5 — Test")
-    print("=" * 60)
+    print("=" * 70)
+    print("AcousticPropagatorV5 — k-Wave kspaceFirstOrder2D Test")
+    print("=" * 70)
 
     # --- Create propagator ---
     prop = AcousticPropagatorV5(
@@ -388,34 +426,34 @@ if __name__ == "__main__":
         pml_width=pml_width, n_elements=n_elements, c_ref=c_ref,
     ).to(device)
 
-    # --- Two-layer medium ---
+    # --- Two-layer medium: c=1500 top, c=1800 bottom ---
     B = 1
-    c_map = torch.ones(B, nx, ny, device=device, dtype=dtype) * 1500.0  # water
-    c_map[:, nx // 2 :, :] = 2500.0  # bone/tissue layer
-    c_map.requires_grad_(True)
+    c_map = torch.ones(B, nx, ny, device=device, dtype=dtype) * 1500.0
+    c_map[:, nx // 2:, :] = 1800.0  # interface at row 128
 
-    alpha_map = torch.zeros(B, nx, ny, device=device, dtype=dtype)
-    alpha_map[:, nx // 2 :, :] = 0.5  # attenuation in second layer
+    alpha_map = torch.zeros(B, nx, ny, device=device, dtype=dtype)  # lossless
 
-    # --- Source: 5-cycle tone burst at 1 MHz ---
-    freq = 1.0e6
+    # --- Source: 2 MHz, 3-cycle burst ---
+    freq = 2.0e6
     t_axis = torch.arange(n_steps, device=device, dtype=dtype) * dt
-    n_cycles = 5
-    burst_duration = n_cycles / freq
+    n_cycles = 3
+    burst_duration = n_cycles / freq  # 1.5e-6 s
     burst_mask = (t_axis < burst_duration).float()
-    source_signal = (torch.sin(2.0 * math.pi * freq * t_axis) * burst_mask).unsqueeze(0)  # [1, n_steps]
+    source_signal = (torch.sin(2.0 * math.pi * freq * t_axis) * burst_mask).unsqueeze(0)
 
-    # Scale source
+    # Scale source to physical pressure
     source_signal = source_signal * 1e6  # Pa
 
     # --- CFL check ---
     c_max = c_map.max().item()
     cfl = c_max * dt / dx
-    print(f"CFL number: {cfl:.4f}  (limit: {1.0/math.sqrt(2.0):.4f})")
+    print(f"CFL number: {cfl:.4f}  (limit: {1.0 / math.sqrt(2.0):.4f})")
     print(f"c_max: {c_max:.0f} m/s,  dt: {dt:.2e} s,  dx: {dx:.2e} m")
+    print(f"Source: {freq / 1e6:.1f} MHz, {n_cycles} cycles, "
+          f"burst = {burst_duration * 1e6:.1f} µs = {int(burst_duration / dt)} steps")
 
-    # --- Run propagation ---
-    print(f"\nRunning {n_steps} steps...")
+    # --- Run propagation (eval mode, no grad) ---
+    print(f"\nRunning {n_steps} steps (eval mode, no grad)...")
     t0 = time.time()
     prop.eval()
     with torch.no_grad():
@@ -425,30 +463,51 @@ if __name__ == "__main__":
     print(f"Done in {elapsed:.2f}s")
     print(f"Sensor data shape: {sensor_data.shape}")
     print(f"Sensor data range: [{sensor_data.min().item():.4e}, {sensor_data.max().item():.4e}]")
+    print(f"Sensor data mean:  {sensor_data.mean().item():.4e}")
+    print(f"Sensor data std:   {sensor_data.std().item():.4e}")
 
-    # --- Gradient check ---
-    # Burst = 5 cycles at 1MHz = 125 steps. Need post-burst steps for gradient.
+    # Check for non-trivial signal after burst
+    burst_steps = int(burst_duration / dt)
+    post_burst = sensor_data[:, :, burst_steps:]
+    print(f"\nPost-burst signal (steps {burst_steps}-{n_steps}):")
+    print(f"  max abs: {post_burst.abs().max().item():.4e}")
+    print(f"  mean abs: {post_burst.abs().mean().item():.4e}")
+    if post_burst.abs().max().item() > 1e-10:
+        print("  ✓ Post-burst echoes detected!")
+    else:
+        print("  ✗ WARNING: No post-burst signal — possible propagation issue")
+
+    # --- Gradient flow check ---
     print("\n--- Gradient flow check ---")
     prop.train()
     c_grad = torch.ones(B, nx, ny, device=device, dtype=dtype) * 1500.0
-    c_grad[:, nx // 2 :, :] = 2500.0
+    c_grad[:, nx // 2:, :] = 1800.0
     c_grad = c_grad.clone().requires_grad_(True)
 
     alpha_grad = torch.zeros(B, nx, ny, device=device, dtype=dtype)
 
-    # Need post-burst steps: burst ends at step ~125, use 250 for some echo time
-    n_grad_steps = 250
-    source_grad = source_signal[:, :n_grad_steps]
-
-    sensor_grad = prop(c_grad, alpha_grad, source_grad)
+    sensor_grad = prop(c_grad, alpha_grad, source_signal)
     loss = sensor_grad.abs().mean()
     loss.backward()
 
     grad_norm = c_grad.grad.norm().item() if c_grad.grad is not None else 0.0
+    grad_max = c_grad.grad.abs().max().item() if c_grad.grad is not None else 0.0
+    grad_nonzero = (c_grad.grad.abs() > 0).sum().item() if c_grad.grad is not None else 0
+
     print(f"Loss: {loss.item():.6e}")
     print(f"Gradient norm (c): {grad_norm:.6e}")
+    print(f"Gradient max  (c): {grad_max:.6e}")
+    print(f"Gradient nonzero:  {grad_nonzero} / {nx * ny}")
     print(f"Gradient flows: {'YES ✓' if grad_norm > 0 else 'NO ✗'}")
 
-    print("\n" + "=" * 60)
-    print("All checks passed!" if grad_norm > 0 else "WARNING: No gradient flow!")
-    print("=" * 60)
+    print("\n" + "=" * 70)
+    if grad_norm > 0 and post_burst.abs().max().item() > 1e-10:
+        print("ALL CHECKS PASSED ✓")
+    else:
+        issues = []
+        if grad_norm == 0:
+            issues.append("no gradient flow")
+        if post_burst.abs().max().item() <= 1e-10:
+            issues.append("no post-burst echoes")
+        print(f"ISSUES DETECTED: {', '.join(issues)}")
+    print("=" * 70)
