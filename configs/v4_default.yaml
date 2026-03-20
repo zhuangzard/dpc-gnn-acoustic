@@ -23,7 +23,7 @@ data:
 
 training:
   epochs: 200
-  lr: 1.0e-4              # AdamW learning rate
+  lr: 5.0e-4              # AdamW learning rate (raised from 1e-4, grad too small)
   weight_decay: 1.0e-5    # AdamW weight decay
   batch_size: 16          # Batch size (RTX 5090 32GB, 11.7GB used at batch=8)
   warmup_epochs: 5        # Linear warmup epochs
