@@ -148,9 +148,16 @@ class AcousticPropagatorV5(nn.Module):
         # --- PML coefficients: exp(-sigma * dt / 2) ---
         # k-Wave uses multiplicative PML: field = pml * (pml * field - dt * rhs)
         # where pml = exp(-sigma * dt / 2), applied TWICE per step
-        sigma_max = c_ref / (pml_width * dx) * 3.0
+        #
+        # k-Wave sigma_max formula (from kspaceFirstOrder2D.m):
+        #   sigma_max = -(pml_alpha + 1) * c_ref * log(R0) / (2 * pml_size * dx)
+        # where pml_alpha=2 (quadratic), R0=default reflection coefficient
+        # For R0 = 1e-6 (−120 dB target reflection):
+        pml_alpha = 2  # k-Wave default: quadratic polynomial grading
+        R0 = 1e-6  # target reflection coefficient
+        sigma_max = -(pml_alpha + 1) * c_ref * math.log(R0) / (2.0 * pml_width * dx)
 
-        # Build 1D sigma profiles (cubic polynomial grading)
+        # Build 1D sigma profiles (quadratic polynomial grading, matching k-Wave)
         # sigma at grid points (for density/pressure updates)
         sigma_x_1d = torch.zeros(nx)
         sigma_y_1d = torch.zeros(ny)
@@ -160,22 +167,20 @@ class AcousticPropagatorV5(nn.Module):
         sigma_y_sgy_1d = torch.zeros(ny)
 
         for i in range(pml_width):
-            # Grid-point sigma
-            val = sigma_max * ((pml_width - i) / pml_width) ** 3
+            # Grid-point sigma: k-Wave uses (distance_from_inner_edge / pml_width)^alpha
+            # i=0 is outer boundary, i=pml_width-1 is inner boundary
+            val = sigma_max * ((pml_width - i) / pml_width) ** pml_alpha
             sigma_x_1d[i] = val
             sigma_x_1d[nx - 1 - i] = val
             sigma_y_1d[i] = val
             sigma_y_1d[ny - 1 - i] = val
 
             # Staggered-point sigma (half-cell offset)
-            # Left PML: stagger at (i + 0.5), so distance from boundary = pml_width - i - 0.5
-            val_sg_left = sigma_max * (max(0.0, pml_width - i - 0.5) / pml_width) ** 3
+            val_sg_left = sigma_max * (max(0.0, pml_width - i - 0.5) / pml_width) ** pml_alpha
             sigma_x_sgx_1d[i] = val_sg_left
             sigma_y_sgy_1d[i] = val_sg_left
 
-            # Right PML: stagger at (N-1-i + 0.5) = (N-0.5-i), distance = pml_width - i + 0.5
-            # But clamp to not exceed sigma_max range
-            val_sg_right = sigma_max * (min(pml_width, pml_width - i + 0.5) / pml_width) ** 3
+            val_sg_right = sigma_max * (min(pml_width, pml_width - i + 0.5) / pml_width) ** pml_alpha
             sigma_x_sgx_1d[nx - 1 - i] = val_sg_right
             sigma_y_sgy_1d[ny - 1 - i] = val_sg_right
 
