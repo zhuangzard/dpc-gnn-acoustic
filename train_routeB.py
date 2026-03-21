@@ -8,11 +8,12 @@ Loss = L_wavefield + 0.1 * L_momentum + 0.01 * L_energy
 
 Training strategy:
   - Single-step: model.step_from_frames() predicts next [p, vx, vy]
-  - Pushforward trick: 50% chance of using predicted states as input
+  - Per-sample backward to avoid OOM
+  - Loss on normalized values (all components O(1))
   - Adam, LR=1e-3, cosine decay
   - Batch size: 32 (single frames)
   - Gradient clipping: 1.0
-  - AMP: True
+  - AMP: disabled (float32)
 
 Usage:
     python train_routeB.py --data_dir data/wavefield_gt --epochs 200
@@ -29,9 +30,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, random_split
-from torch.cuda.amp import GradScaler, autocast
-
-from src.models.wave_gnn_routeB import WaveGNNRouteB
+from src.models.wave_gnn_routeB import WaveGNNRouteB, P_SCALE, V_SCALE
 from src.data.wavefield_dataset import WavefieldDataset
 
 
@@ -55,20 +54,19 @@ class RouteBLoss(nn.Module):
                 vx_pred: torch.Tensor, vx_gt: torch.Tensor,
                 vy_pred: torch.Tensor, vy_gt: torch.Tensor) -> tuple:
         """
-        Args:
-            p_pred, p_gt: (N,) predicted vs GT pressure.
-            vx_pred, vx_gt: (N,) predicted vs GT x-velocity.
-            vy_pred, vy_gt: (N,) predicted vs GT y-velocity.
-
-        Returns:
-            loss: scalar total loss.
-            metrics: dict of component losses.
+        MSE on NORMALIZED values so all loss components are O(1).
+        Skips velocity loss when GT velocity is all zeros.
         """
-        loss_p = F.mse_loss(p_pred, p_gt)
-        loss_vx = F.mse_loss(vx_pred, vx_gt)
-        loss_vy = F.mse_loss(vy_pred, vy_gt)
+        loss_p = F.mse_loss(p_pred / P_SCALE, p_gt / P_SCALE)
+        loss_vx = F.mse_loss(vx_pred / V_SCALE, vx_gt / V_SCALE)
+        loss_vy = F.mse_loss(vy_pred / V_SCALE, vy_gt / V_SCALE)
 
-        total_loss = loss_p + self.w_velocity * (loss_vx + loss_vy)
+        # Skip velocity loss when GT is absent (all zeros)
+        has_velocity = vx_gt.abs().max() > 1e-10 or vy_gt.abs().max() > 1e-10
+        if has_velocity:
+            total_loss = loss_p + self.w_velocity * (loss_vx + loss_vy)
+        else:
+            total_loss = loss_p
 
         metrics = {
             'loss_p': loss_p.item(),
@@ -153,10 +151,9 @@ def gradient_sanity_check(model: WaveGNNRouteB, device: torch.device) -> None:
 # ---------------------------------------------------------------------------
 def train_one_epoch(model: WaveGNNRouteB, dataloader: DataLoader,
                     loss_fn: RouteBLoss, optimizer: torch.optim.Optimizer,
-                    scaler: GradScaler, device: torch.device,
-                    grad_clip: float = 1.0, use_amp: bool = True,
-                    pushforward_prob: float = 0.5) -> dict:
-    """Train for one epoch using step_from_frames()."""
+                    device: torch.device,
+                    grad_clip: float = 1.0) -> dict:
+    """Train for one epoch using step_from_frames() with per-sample backward."""
     model.train()
     total_metrics = {}
     n_batches = 0
@@ -173,47 +170,41 @@ def train_one_epoch(model: WaveGNNRouteB, dataloader: DataLoader,
         alpha_map = batch['alpha_map'].to(device) # (B, H, W)
 
         B = p_curr.size(0)
+        batch_metrics = {}
 
         optimizer.zero_grad()
 
-        with autocast(enabled=use_amp):
-            loss_accum = torch.tensor(0.0, device=device)
-            batch_metrics = {}
+        for b in range(B):
+            # Flatten (H, W) -> (N,) for per-sample forward pass
+            p_flat = p_curr[b].reshape(-1)
+            vx_flat = vx_curr[b].reshape(-1)
+            vy_flat = vy_curr[b].reshape(-1)
+            c_flat = c_map[b].reshape(-1)
+            rho_flat = rho_map[b].reshape(-1)
+            alpha_flat = alpha_map[b].reshape(-1)
 
-            for b in range(B):
-                # Flatten (H, W) -> (N,) for per-sample forward pass
-                p_flat = p_curr[b].reshape(-1)
-                vx_flat = vx_curr[b].reshape(-1)
-                vy_flat = vy_curr[b].reshape(-1)
-                c_flat = c_map[b].reshape(-1)
-                rho_flat = rho_map[b].reshape(-1)
-                alpha_flat = alpha_map[b].reshape(-1)
+            p_pred, vx_pred, vy_pred = model.step_from_frames(
+                p_flat, vx_flat, vy_flat, c_flat, rho_flat, alpha_flat)
 
-                # P0-1: Model is CALLED to predict next frame
-                p_pred, vx_pred, vy_pred = model.step_from_frames(
-                    p_flat, vx_flat, vy_flat, c_flat, rho_flat, alpha_flat)
+            # Compute loss against GT
+            p_gt_flat = p_next_gt[b].reshape(-1)
+            vx_gt_flat = vx_next_gt[b].reshape(-1)
+            vy_gt_flat = vy_next_gt[b].reshape(-1)
 
-                # Compute loss against GT
-                p_gt_flat = p_next_gt[b].reshape(-1)
-                vx_gt_flat = vx_next_gt[b].reshape(-1)
-                vy_gt_flat = vy_next_gt[b].reshape(-1)
+            step_loss, step_metrics = loss_fn(
+                p_pred, p_gt_flat, vx_pred, vx_gt_flat, vy_pred, vy_gt_flat)
 
-                step_loss, step_metrics = loss_fn(
-                    p_pred, p_gt_flat, vx_pred, vx_gt_flat, vy_pred, vy_gt_flat)
-                loss_accum = loss_accum + step_loss
+            # Per-sample backward: free graph immediately
+            (step_loss / B).backward()
 
-                for k, v in step_metrics.items():
-                    batch_metrics[k] = batch_metrics.get(k, 0.0) + v
+            for k, v in step_metrics.items():
+                batch_metrics[k] = batch_metrics.get(k, 0.0) + v
 
-            loss = loss_accum / B
-            for k in batch_metrics:
-                batch_metrics[k] /= B
+        for k in batch_metrics:
+            batch_metrics[k] /= B
 
-        scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
         torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
-        scaler.step(optimizer)
-        scaler.update()
+        optimizer.step()
 
         for k, v in batch_metrics.items():
             total_metrics[k] = total_metrics.get(k, 0.0) + v
@@ -279,20 +270,14 @@ def main():
     parser.add_argument('--warmup_epochs', type=int, default=5)
     parser.add_argument('--grad_clip', type=float, default=1.0)
     parser.add_argument('--val_split', type=float, default=0.1)
-    parser.add_argument('--pushforward_prob', type=float, default=0.5)
     parser.add_argument('--w_velocity', type=float, default=1.0)
     parser.add_argument('--hidden_dim', type=int, default=80)
     parser.add_argument('--n_mp_layers', type=int, default=4)
     parser.add_argument('--checkpoint_every', type=int, default=50)
-    parser.add_argument('--use_amp', action='store_true', default=True)
-    parser.add_argument('--no_amp', action='store_true')
     parser.add_argument('--resume', type=str, default=None)
     parser.add_argument('--patience', type=int, default=30)
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
-
-    if args.no_amp:
-        args.use_amp = False
 
     torch.manual_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -333,7 +318,6 @@ def main():
     # --- Optimizer & Scheduler ---
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scheduler = WarmupCosineScheduler(optimizer, args.warmup_epochs, args.epochs)
-    scaler = GradScaler(enabled=args.use_amp)
 
     # --- Loss ---
     loss_fn = RouteBLoss(w_velocity=args.w_velocity)
@@ -358,9 +342,8 @@ def main():
         lr = optimizer.param_groups[0]['lr']
 
         train_metrics = train_one_epoch(
-            model, train_loader, loss_fn, optimizer, scaler, device,
-            grad_clip=args.grad_clip, use_amp=args.use_amp,
-            pushforward_prob=args.pushforward_prob,
+            model, train_loader, loss_fn, optimizer, device,
+            grad_clip=args.grad_clip,
         )
 
         val_metrics = validate(model, val_loader, loss_fn, device)

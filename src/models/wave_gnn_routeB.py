@@ -13,8 +13,8 @@ Pipeline:
   StateEncoder:    MLP(p_norm, vx_norm, vy_norm -> 32-dim) with physical normalization
   NodeEmbedder:    Sequential(Linear(32 + 16 + 2 -> 64), GELU())
   AntisymmetricMP: 4 layers (hidden=64, msg=64)
-  Decoder:         3 separate MLPs for dp, dvx, dvy with output rescaling
-  LeapfrogIntegrator: staggered — velocity update first, then pressure update
+  Decoder:         3 separate MLPs for dp, dvx, dvy (O(1) normalized increments, no rescaling)
+  LeapfrogIntegrator: staggered in normalized space — velocity update first, then pressure update
 
 Graph: 8-connected grid (Moore neighborhood), ~524K directed edges on 256x256.
 Edge features: [dx_ij, dy_ij, |r_ij|, c_avg, rho_avg] (5-dim).
@@ -116,7 +116,7 @@ def build_moore_graph(nx: int, ny: int, dx: float,
 # PML mask builder (P0-2: physics-calibrated sigma_max)
 # ---------------------------------------------------------------------------
 def build_pml_mask(nx: int, ny: int, pml_width: int,
-                   dx: float, dt: float, c_ref: float = 1540.0,
+                   dx: float, dt: float, c_ref: float = 2000.0,
                    device: torch.device = None) -> torch.Tensor:
     """
     Build PML damping mask: 1.0 in interior, exponential decay in PML region.
@@ -223,15 +223,13 @@ class StateEncoder(nn.Module):
 # Acceleration Decoders (P0-3: output rescaling to physical units)
 # ---------------------------------------------------------------------------
 class AccelerationDecoder(nn.Module):
-    """Separate MLP heads for dp/dt, dvx/dt, dvy/dt.
+    """Separate MLP heads for dp, dvx, dvy (normalized increments).
 
-    MLP outputs O(1) values, then rescaled to physical units:
-      dp_physical  = dp_raw * (P_SCALE / dt)
-      dvx_physical = dvx_raw * (V_SCALE / dt)
-      dvy_physical = dvy_raw * (V_SCALE / dt)
+    MLP outputs O(1) dimensionless values directly.
+    dp_raw is the change in p/P_SCALE per timestep (no rescaling).
     """
 
-    def __init__(self, in_dim: int = 64, dt: float = 4.0e-8):
+    def __init__(self, in_dim: int = 64):
         super().__init__()
         self.dp_head = nn.Sequential(
             nn.Linear(in_dim, 32), nn.GELU(), nn.Linear(32, 1))
@@ -240,27 +238,18 @@ class AccelerationDecoder(nn.Module):
         self.dvy_head = nn.Sequential(
             nn.Linear(in_dim, 32), nn.GELU(), nn.Linear(32, 1))
 
-        # P0-3: Output scales so MLP outputs O(1) values
-        self.dp_scale = P_SCALE / dt     # ~2.5e11
-        self.dv_scale = V_SCALE / dt     # ~1.625e5
-
     def forward(self, h: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Args:
             h: (N, in_dim) node features after MP.
 
         Returns:
-            dp: (N,) pressure acceleration [Pa/s].
-            dvx: (N,) x-velocity acceleration [m/s^2].
-            dvy: (N,) y-velocity acceleration [m/s^2].
+            dp, dvx, dvy: (N,) each, O(1) dimensionless increments.
         """
-        dp_raw = self.dp_head(h).squeeze(-1)
-        dvx_raw = self.dvx_head(h).squeeze(-1)
-        dvy_raw = self.dvy_head(h).squeeze(-1)
-
-        return (dp_raw * self.dp_scale,
-                dvx_raw * self.dv_scale,
-                dvy_raw * self.dv_scale)
+        dp = self.dp_head(h).squeeze(-1)
+        dvx = self.dvx_head(h).squeeze(-1)
+        dvy = self.dvy_head(h).squeeze(-1)
+        return dp, dvx, dvy
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +283,7 @@ class WaveGNNRouteB(nn.Module):
                  hidden_dim: int = 80, n_mp_layers: int = 4,
                  material_dim: int = 16, state_dim: int = 32,
                  edge_dim: int = 5, n_elements: int = 128,
-                 checkpoint_every: int = 50, c_ref: float = 1540.0):
+                 checkpoint_every: int = 50, c_ref: float = 2000.0):
         super().__init__()
         self.nx = nx
         self.ny = ny
@@ -322,8 +311,8 @@ class WaveGNNRouteB(nn.Module):
             for _ in range(n_mp_layers)
         ])
 
-        # P0-3: Acceleration decoder with output rescaling
-        self.decoder = AccelerationDecoder(in_dim=hidden_dim, dt=dt)
+        # Acceleration decoder (no rescaling, outputs O(1) normalized increments)
+        self.decoder = AccelerationDecoder(in_dim=hidden_dim)
 
         # --- Cached (non-learnable) ---
         self._graph = None
@@ -381,7 +370,7 @@ class WaveGNNRouteB(nn.Module):
                   edge_index: torch.Tensor, edge_attr_full: torch.Tensor,
                   pos_enc: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Single GNN forward pass: state -> accelerations.
+        Single GNN forward pass: state -> normalized increments.
 
         Args:
             state: (N, 3) = [p, vx, vy] in physical units.
@@ -391,9 +380,9 @@ class WaveGNNRouteB(nn.Module):
             pos_enc: (N, 2).
 
         Returns:
-            dp, dvx, dvy: (N,) each, predicted accelerations in physical units.
+            dp, dvx, dvy: (N,) each, O(1) dimensionless increments.
         """
-        # P1-4: StateEncoder normalizes internally
+        # StateEncoder normalizes internally (divides by P_SCALE, V_SCALE)
         state_emb = self.state_encoder(state)  # (N, 32)
         node_feat = torch.cat([state_emb, material_emb, pos_enc], dim=-1)  # (N, 50)
         h = self.node_embedder(node_feat)  # (N, hidden_dim)
@@ -401,49 +390,43 @@ class WaveGNNRouteB(nn.Module):
         for mp_layer in self.mp_layers:
             h = mp_layer(h, edge_index, edge_attr_full)
 
-        # P0-3: Decoder rescales O(1) MLP output to physical units
         dp, dvx, dvy = self.decoder(h)
         return dp, dvx, dvy
 
     def _leapfrog_step(self, p: torch.Tensor, vx: torch.Tensor, vy: torch.Tensor,
                        material_emb: torch.Tensor,
                        edge_index: torch.Tensor, edge_attr_full: torch.Tensor,
-                       pos_enc: torch.Tensor, dt: float, pml_mask: torch.Tensor,
+                       pos_enc: torch.Tensor, pml_mask: torch.Tensor,
                        source_val: Optional[torch.Tensor] = None,
                        source_idx: Optional[torch.Tensor] = None
                        ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        Staggered Leapfrog time integration (P1-3).
+        Staggered Leapfrog in normalized space.
 
-        vx/vy are at half-integer time steps relative to p.
-
-        Step 1: GNN call with (p, vx, vy) -> dvx, dvy
-                vx_new = vx + dt * dvx
-                vy_new = vy + dt * dvy
-        Step 2: GNN call with (p, vx_new, vy_new) -> dp
-                p_new  = p  + dt * dp
-
-        Then apply PML damping and source injection (Dirichlet).
+        GNN outputs O(1) dimensionless increments (dp_norm, dvx_norm, dvy_norm).
+        Integration: p_norm_next = p_norm + dp_norm (no dt multiplication).
+        Inputs/outputs are in physical units; normalization is internal.
         """
         # --- Step 1: velocity update ---
-        state_v = torch.stack([p, vx, vy], dim=-1)
-        _, dvx, dvy = self._gnn_step(state_v, material_emb,
-                                       edge_index, edge_attr_full, pos_enc)
-        vx = vx + dt * dvx
-        vy = vy + dt * dvy
+        state_v = torch.stack([p, vx, vy], dim=-1)  # physical units
+        _, dvx_norm, dvy_norm = self._gnn_step(state_v, material_emb,
+                                                edge_index, edge_attr_full, pos_enc)
+        # Integrate in normalized space, then denormalize
+        vx = vx + dvx_norm * V_SCALE
+        vy = vy + dvy_norm * V_SCALE
 
         # --- Step 2: pressure update using updated velocity ---
         state_p = torch.stack([p, vx, vy], dim=-1)
-        dp, _, _ = self._gnn_step(state_p, material_emb,
-                                   edge_index, edge_attr_full, pos_enc)
-        p = p + dt * dp
+        dp_norm, _, _ = self._gnn_step(state_p, material_emb,
+                                        edge_index, edge_attr_full, pos_enc)
+        p = p + dp_norm * P_SCALE
 
         # PML damping (multiplicative, not learned)
         p = p * pml_mask
         vx = vx * pml_mask
         vy = vy * pml_mask
 
-        # P1-5: Source injection — Dirichlet (gradient-preserving replacement)
+        # Source injection — Dirichlet (gradient-preserving replacement)
         if source_val is not None and source_idx is not None:
             mask = torch.zeros_like(p)
             mask[source_idx] = 1.0
@@ -483,21 +466,19 @@ class WaveGNNRouteB(nn.Module):
         # Material embedding (caller should cache for multi-step)
         material_emb = self.material_encoder(c, rho, alpha)
 
-        dt = self.dt
-
-        # Staggered Leapfrog (P1-3):
+        # Staggered Leapfrog in normalized space:
         # Step 1: velocity update
-        state_v = torch.stack([p, vx, vy], dim=-1)
-        _, dvx, dvy = self._gnn_step(state_v, material_emb,
-                                       edge_index, edge_attr_full, pos_enc)
-        vx_next = vx + dt * dvx
-        vy_next = vy + dt * dvy
+        state_v = torch.stack([p, vx, vy], dim=-1)  # physical units
+        _, dvx_norm, dvy_norm = self._gnn_step(state_v, material_emb,
+                                                edge_index, edge_attr_full, pos_enc)
+        vx_next = vx + dvx_norm * V_SCALE
+        vy_next = vy + dvy_norm * V_SCALE
 
         # Step 2: pressure update with updated velocity
         state_p = torch.stack([p, vx_next, vy_next], dim=-1)
-        dp, _, _ = self._gnn_step(state_p, material_emb,
-                                   edge_index, edge_attr_full, pos_enc)
-        p_next = p + dt * dp
+        dp_norm, _, _ = self._gnn_step(state_p, material_emb,
+                                        edge_index, edge_attr_full, pos_enc)
+        p_next = p + dp_norm * P_SCALE
 
         return p_next, vx_next, vy_next
 
@@ -559,7 +540,7 @@ class WaveGNNRouteB(nn.Module):
             p, vx, vy = self._leapfrog_step(
                 p, vx, vy, material_emb,
                 edge_index, edge_attr_full, pos_enc,
-                self.dt, pml_mask,
+                pml_mask,
                 source_val=src_val, source_idx=source_idx)
 
             # Record at sensor locations
@@ -590,7 +571,7 @@ class WaveGNNRouteB(nn.Module):
 # ---------------------------------------------------------------------------
 if __name__ == '__main__':
     print("=" * 60)
-    print("WaveGNNRouteB — Smoke Test")
+    print("WaveGNNRouteB — Smoke Test (normalized units)")
     print("=" * 60)
 
     model = WaveGNNRouteB(
@@ -614,6 +595,7 @@ if __name__ == '__main__':
     sensor_data = model(c, rho, alpha, source, n_steps=5)
     print(f"Sensor data shape: {sensor_data.shape}")
     print(f"Sensor data range: [{sensor_data.min():.6f}, {sensor_data.max():.6f}]")
+    assert torch.isfinite(sensor_data).all(), "FAIL: sensor_data contains inf/NaN"
 
     # Gradient check on forward()
     loss = sensor_data.sum()
@@ -625,7 +607,7 @@ if __name__ == '__main__':
     # Reset grads for step_from_frames test
     model.zero_grad()
 
-    # Test step_from_frames (P0-1, P1-2)
+    # Test step_from_frames
     print(f"\nTesting step_from_frames()...")
     N = 64 * 64
     p_in = torch.randn(N) * P_SCALE * 0.01
@@ -640,6 +622,9 @@ if __name__ == '__main__':
         p_in, vx_in, vy_in, c_flat, rho_flat, alpha_flat)
     print(f"  p_next: mean={p_next.mean():.4e}, std={p_next.std():.4e}")
     print(f"  vx_next: mean={vx_next.mean():.4e}, std={vx_next.std():.4e}")
+    assert torch.isfinite(p_next).all(), "FAIL: p_next contains inf/NaN"
+    assert torch.isfinite(vx_next).all(), "FAIL: vx_next contains inf/NaN"
+    assert torch.isfinite(vy_next).all(), "FAIL: vy_next contains inf/NaN"
 
     step_loss = p_next.sum()
     step_loss.backward()
@@ -647,7 +632,21 @@ if __name__ == '__main__':
                        for p in model.parameters() if p.requires_grad)
     print(f"  Gradient flows to all parameters (step_from_frames): {step_grad_ok}")
 
-    # --- Comprehensive gradient check (P2-6) ---
+    # --- Verify loss is O(1) with normalized MSE ---
+    model.zero_grad()
+    p_gt = torch.randn(N) * P_SCALE * 0.01
+    vx_gt = torch.randn(N) * V_SCALE * 0.01
+    vy_gt = torch.randn(N) * V_SCALE * 0.01
+    loss_p = F.mse_loss(p_next / P_SCALE, p_gt / P_SCALE)
+    loss_vx = F.mse_loss(vx_next / V_SCALE, vx_gt / V_SCALE)
+    loss_vy = F.mse_loss(vy_next / V_SCALE, vy_gt / V_SCALE)
+    norm_loss = loss_p + loss_vx + loss_vy
+    print(f"\n--- Normalized loss check ---")
+    print(f"  loss_p={loss_p.item():.4f}, loss_vx={loss_vx.item():.4f}, loss_vy={loss_vy.item():.4f}")
+    print(f"  total normalized loss={norm_loss.item():.4f} (should be O(1))")
+    assert norm_loss.item() < 1e6, f"FAIL: normalized loss too large: {norm_loss.item()}"
+
+    # --- Comprehensive gradient check ---
     print(f"\n--- Comprehensive Gradient Sanity Check ---")
     model.zero_grad()
     p_test = torch.randn(N) * 100.0
@@ -656,14 +655,19 @@ if __name__ == '__main__':
 
     p_out, vx_out, vy_out = model.step_from_frames(
         p_test, vx_test, vy_test, c_flat, rho_flat, alpha_flat)
-    test_loss = p_out.pow(2).mean() + vx_out.pow(2).mean() + vy_out.pow(2).mean()
+    test_loss = F.mse_loss(p_out / P_SCALE, torch.zeros_like(p_out)) + \
+                F.mse_loss(vx_out / V_SCALE, torch.zeros_like(vx_out)) + \
+                F.mse_loss(vy_out / V_SCALE, torch.zeros_like(vy_out))
     test_loss.backward()
 
     zero_grad_params = []
+    inf_grad_params = []
     for name, param in model.named_parameters():
         if param.requires_grad:
             if param.grad is None or param.grad.abs().sum() == 0:
                 zero_grad_params.append(name)
+            elif not torch.isfinite(param.grad).all():
+                inf_grad_params.append(name)
 
     if zero_grad_params:
         print(f"  FAIL: {len(zero_grad_params)} parameters have zero gradient:")
@@ -672,9 +676,16 @@ if __name__ == '__main__':
         raise RuntimeError(
             f"Gradient sanity check failed: {len(zero_grad_params)} parameters "
             f"have zero gradient: {zero_grad_params}")
-    else:
-        total_params = sum(1 for p in model.parameters() if p.requires_grad)
-        print(f"  PASS: All {total_params} learnable parameters have non-zero gradient.")
+    if inf_grad_params:
+        print(f"  FAIL: {len(inf_grad_params)} parameters have inf/NaN gradient:")
+        for name in inf_grad_params:
+            print(f"    - {name}")
+        raise RuntimeError(
+            f"Gradient sanity check failed: {len(inf_grad_params)} parameters "
+            f"have inf/NaN gradient: {inf_grad_params}")
+
+    total_params = sum(1 for p in model.parameters() if p.requires_grad)
+    print(f"  PASS: All {total_params} learnable parameters have finite non-zero gradient.")
 
     # Full 256x256 parameter count
     print(f"\n--- Full 256x256 parameter count ---")
