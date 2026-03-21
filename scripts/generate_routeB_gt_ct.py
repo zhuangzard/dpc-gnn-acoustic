@@ -65,16 +65,40 @@ ALPHA_POWER = 1.5
 # CT → acoustic property mapping
 # ---------------------------------------------------------------------------
 def ct_to_c(ct_slice: np.ndarray) -> np.ndarray:
-    """Convert CT slice to speed of sound [m/s], mapped to [1400, 2000].
+    """Convert CT slice to speed of sound [m/s] using CALIBRATED inverse mapping.
 
-    Full range includes bone (ribs, spine) up to c=2000 m/s.
-    Maps darkest pixel -> 1400, brightest -> 2000.
+    Exact inverse of c_to_hu(c) = (c - 1400) / 300 * 400 from generate_complex_gt.py.
+    ct_slice values ~20-320 -> c ~1415-1640 m/s (soft tissue range).
+    Bone augmentation is applied separately via add_synthetic_bone().
     """
-    ct_min = ct_slice.min()
-    ct_max = ct_slice.max()
-    if ct_max - ct_min < 1e-6:
-        return np.full_like(ct_slice, 1540.0)
-    return 1400.0 + (ct_slice - ct_min) / (ct_max - ct_min) * 600.0
+    c = ct_slice * 0.75 + 1400.0
+    return np.clip(c, 1400.0, 2000.0)
+
+
+def add_synthetic_bone(c_map: np.ndarray, rho_map: np.ndarray,
+                       alpha_map: np.ndarray, rng: np.random.Generator,
+                       prob: float = 0.3) -> tuple:
+    """Add synthetic bone regions to ~30% of samples for high-contrast diversity.
+
+    Adds 1-3 thin bone-like strips (ribs/spine) with c=1800-2200, rho=1500-1900.
+    This extends training coverage beyond the soft-tissue-only CT data.
+    """
+    if rng.random() > prob:
+        return c_map, rho_map, alpha_map
+    c_map = c_map.copy()
+    rho_map = rho_map.copy()
+    alpha_map = alpha_map.copy()
+    n_bones = rng.integers(1, 4)
+    for _ in range(n_bones):
+        row = rng.integers(30, c_map.shape[0] - 30)
+        width = rng.integers(3, 8)  # 3-8 pixels (~0.7-1.9 mm)
+        c_bone = rng.uniform(1800.0, 2200.0)
+        rho_bone = rng.uniform(1500.0, 1900.0)
+        alpha_bone = rng.uniform(3.0, 8.0)  # bone attenuation much higher
+        c_map[row:row+width, :] = c_bone
+        rho_map[row:row+width, :] = rho_bone
+        alpha_map[row:row+width, :] = alpha_bone
+    return np.clip(c_map, 1400.0, 2500.0), rho_map, alpha_map
 
 
 def rho_from_c(c):
@@ -239,10 +263,14 @@ def process_one(sample_idx: int, ct_path: str, output_dir: str,
     assert ct_slice.shape == (NX, NY), \
         f"CT slice shape {ct_slice.shape} != expected ({NX}, {NY})"
 
-    # Convert to acoustic maps
+    # Convert to acoustic maps (calibrated inverse mapping)
     c_map = ct_to_c(ct_slice)
     rho_map = rho_from_c(c_map)
     alpha_map = alpha_from_c(c_map)
+
+    # Add synthetic bone to ~30% of samples for high-contrast diversity
+    rng = np.random.default_rng(seed=sample_idx)
+    c_map, rho_map, alpha_map = add_synthetic_bone(c_map, rho_map, alpha_map, rng)
 
     # Run full-field simulation
     p_frames, sim_meta = run_fullfield_sim(
