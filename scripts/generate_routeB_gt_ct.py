@@ -159,7 +159,8 @@ def run_fullfield_sim(c_map: np.ndarray, rho_map: np.ndarray,
                       frame_start: int = FRAME_START,
                       frame_end: int = FRAME_END,
                       data_path: str = None,
-                      threads: int = 32) -> tuple:
+                      threads: int = 32,
+                      use_gpu: bool = False) -> tuple:
     """Run k-Wave simulation recording full pressure field.
 
     Returns (p_frames, sim_meta) — identical logic to generate_routeB_gt.py.
@@ -204,7 +205,7 @@ def run_fullfield_sim(c_map: np.ndarray, rho_map: np.ndarray,
         sim_opts_kwargs['data_path'] = data_path
     sim_options = SimulationOptions(**sim_opts_kwargs)
     exec_options = SimulationExecutionOptions(
-        is_gpu_simulation=False, delete_data=True,
+        is_gpu_simulation=use_gpu, delete_data=True,
         show_sim_log=False, num_threads=threads,
     )
 
@@ -252,7 +253,8 @@ def discover_ct_samples(ct_data_dir: str) -> list:
 # Process one CT sample
 # ---------------------------------------------------------------------------
 def process_one(sample_idx: int, ct_path: str, output_dir: str,
-                kwave_tmpdir: str, threads: int = 32) -> dict:
+                kwave_tmpdir: str, threads: int = 32,
+                use_gpu: bool = False) -> dict:
     """Load CT slice, convert to acoustic maps, run k-Wave, save HDF5."""
     t0 = time.time()
 
@@ -278,6 +280,7 @@ def process_one(sample_idx: int, ct_path: str, output_dir: str,
     p_frames, sim_meta = run_fullfield_sim(
         c_map, rho_map, alpha_map=alpha_map,
         data_path=kwave_tmpdir, threads=threads,
+        use_gpu=use_gpu,
     )
 
     # Save as HDF5
@@ -334,6 +337,8 @@ def main():
                         help='Number of parallel k-Wave processes')
     parser.add_argument('--threads', type=int, default=32,
                         help='OMP threads per k-Wave process')
+    parser.add_argument('--gpu', action='store_true',
+                        help='Use CUDA GPU binary instead of OMP CPU')
     args = parser.parse_args()
 
     os.environ["OMP_NUM_THREADS"] = str(args.threads)
@@ -368,7 +373,8 @@ def main():
             print(f"[{i+1}/{len(samples)}] sample_{sample_idx:04d} ...", flush=True)
             try:
                 info = process_one(sample_idx, ct_path, args.output_dir,
-                                   args.kwave_tmpdir, threads=args.threads)
+                                   args.kwave_tmpdir, threads=args.threads,
+                                   use_gpu=args.gpu)
                 n_ok += 1
                 print(f"  -> CT_{sample_idx:04d}.h5  "
                       f"{info['n_frames']} frames, "
@@ -386,7 +392,8 @@ def main():
                 # Each worker gets its own tmp subdir
                 tmp = os.path.join(args.kwave_tmpdir, f"w{sample_idx}")
                 fut = pool.submit(process_one, sample_idx, ct_path,
-                                  args.output_dir, tmp, args.threads)
+                                  args.output_dir, tmp, args.threads,
+                                  args.gpu)
                 futures[fut] = sample_idx
 
             for fut in as_completed(futures):
