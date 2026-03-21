@@ -298,11 +298,18 @@ def main():
 
     print(f"Dataset: {len(dataset)} samples ({n_train} train, {n_val} val)")
 
+    # --- Infer grid size from first sample ---
+    sample0 = dataset[0]
+    grid_h, grid_w = sample0['c_map'].shape
+    print(f"Grid size: {grid_h}x{grid_w} (inferred from data)")
+    n_elements = min(128, grid_w - 2 * 20)  # fit within non-PML region
+    pml_width = min(20, grid_h // 8)  # scale PML for small grids
+
     # --- Model ---
     model = WaveGNNRouteB(
-        nx=256, ny=256, dx=2.34e-4, dt=4.0e-8,
-        pml_width=20, hidden_dim=args.hidden_dim,
-        n_mp_layers=args.n_mp_layers, n_elements=128,
+        nx=grid_h, ny=grid_w, dx=2.34e-4, dt=4.0e-8,
+        pml_width=pml_width, hidden_dim=args.hidden_dim,
+        n_mp_layers=args.n_mp_layers, n_elements=n_elements,
         checkpoint_every=args.checkpoint_every,
     ).to(device)
 
