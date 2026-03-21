@@ -57,7 +57,8 @@ class WavefieldDataset(Dataset):
 
     def __init__(self, data_dir: str, rollout_len: int = 1,
                  frame_stride: int = 1, normalize: bool = False,
-                 max_frames_per_file: int = 0):
+                 max_frames_per_file: int = 0,
+                 file_indices: Optional[List[int]] = None):
         self.data_dir = Path(data_dir)
         self.rollout_len = rollout_len
         self.frame_stride = frame_stride
@@ -69,8 +70,16 @@ class WavefieldDataset(Dataset):
         self._index: List[Tuple[int, int]] = []  # (file_idx, frame_idx)
 
         # P1-1: Glob *.h5 files directly from flat directory
+        all_h5_files: List[Path] = []
         if self.data_dir.exists():
-            self.h5_files = sorted(self.data_dir.glob('*.h5'))
+            all_h5_files = sorted(self.data_dir.glob('*.h5'))
+
+        # Filter by file_indices if provided (for CT-level train/val split)
+        if file_indices is not None:
+            self.h5_files = [all_h5_files[i] for i in file_indices
+                             if i < len(all_h5_files)]
+        else:
+            self.h5_files = all_h5_files
 
         # Probe each file for frame count
         if self.h5_files:
@@ -102,6 +111,12 @@ class WavefieldDataset(Dataset):
 
         if len(self._index) == 0 and len(self.h5_files) == 0:
             print(f"WARNING: No .h5 files found in {data_dir}.")
+
+    @staticmethod
+    def count_h5_files(data_dir: str) -> int:
+        """Return the number of .h5 files in data_dir."""
+        d = Path(data_dir)
+        return len(sorted(d.glob('*.h5'))) if d.exists() else 0
 
     def __len__(self) -> int:
         return max(len(self._index), 1)  # At least 1 for dummy mode

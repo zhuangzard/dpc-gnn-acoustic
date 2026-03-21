@@ -29,7 +29,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import DataLoader
 from src.models.wave_gnn_routeB import WaveGNNRouteB, P_SCALE, V_SCALE
 from src.data.wavefield_dataset import WavefieldDataset
 
@@ -287,22 +287,34 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # --- Dataset ---
-    dataset = WavefieldDataset(args.data_dir, rollout_len=1,
-                               max_frames_per_file=args.max_frames)
-    n_val = max(1, int(len(dataset) * args.val_split))
-    n_train = len(dataset) - n_val
-    train_ds, val_ds = random_split(dataset, [n_train, n_val])
+    # --- Dataset (CT-level split: no CT appears in both train and val) ---
+    import numpy as np
+    n_files = WavefieldDataset.count_h5_files(args.data_dir)
+    if n_files == 0:
+        print(f"WARNING: No .h5 files found in {args.data_dir}")
+    file_order = np.random.RandomState(args.seed).permutation(n_files)
+    n_val_files = max(1, int(n_files * args.val_split))
+    val_file_indices = sorted(file_order[:n_val_files].tolist())
+    train_file_indices = sorted(file_order[n_val_files:].tolist())
+    print(f"CT-level split: {len(train_file_indices)} train files, "
+          f"{len(val_file_indices)} val files (no overlap)")
+
+    train_ds = WavefieldDataset(args.data_dir, rollout_len=1,
+                                max_frames_per_file=args.max_frames,
+                                file_indices=train_file_indices)
+    val_ds = WavefieldDataset(args.data_dir, rollout_len=1,
+                              max_frames_per_file=args.max_frames,
+                              file_indices=val_file_indices)
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size,
                               shuffle=True, num_workers=4, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size,
                             shuffle=False, num_workers=2, pin_memory=True)
 
-    print(f"Dataset: {len(dataset)} samples ({n_train} train, {n_val} val)")
+    print(f"Dataset: {len(train_ds)} train + {len(val_ds)} val samples")
 
     # --- Infer grid size from first sample ---
-    sample0 = dataset[0]
+    sample0 = train_ds[0]
     grid_h, grid_w = sample0['c_map'].shape
     print(f"Grid size: {grid_h}x{grid_w} (inferred from data)")
     n_elements = min(128, grid_w - 2 * 20)  # fit within non-PML region
@@ -325,6 +337,13 @@ def main():
     # P2-6: Mandatory gradient sanity check before training
     gradient_sanity_check(model, device)
 
+    # --- Copy-baseline diagnostic ---
+    first_batch = next(iter(train_loader))
+    copy_loss_p = F.mse_loss(
+        first_batch['p_curr'] / P_SCALE, first_batch['p_next'] / P_SCALE)
+    print(f"COPY BASELINE (p(t)=p(t+1)): {copy_loss_p:.4e}")
+    print(f"If model loss ≈ copy baseline, model learned nothing.")
+
     # --- Optimizer & Scheduler ---
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-5)
     scheduler = WarmupCosineScheduler(optimizer, args.warmup_epochs, args.epochs)
@@ -341,7 +360,7 @@ def main():
         optimizer.load_state_dict(ckpt['optimizer_state_dict'])
         start_epoch = ckpt.get('epoch', 0) + 1
         best_val_loss = ckpt.get('best_val_loss', float('inf'))
-        print(f"Resumed from epoch {start_epoch}, best_val_loss={best_val_loss:.6f}")
+        print(f"Resumed from epoch {start_epoch}, best_val_loss={best_val_loss:.4e}")
 
     # --- Training loop ---
     patience_counter = 0
@@ -364,8 +383,8 @@ def main():
         # Log
         print(f"Epoch {epoch:3d}/{args.epochs} | "
               f"lr={lr:.2e} | "
-              f"train_loss={train_metrics.get('total_loss', 0):.6f} | "
-              f"val_loss={val_loss:.6f} | "
+              f"train_loss={train_metrics.get('total_loss', 0):.4e} | "
+              f"val_loss={val_loss:.4e} | "
               f"loss_p={val_metrics.get('loss_p', 0):.4e} | "
               f"{elapsed:.1f}s")
 
@@ -380,7 +399,7 @@ def main():
                 'best_val_loss': best_val_loss,
                 'params': params,
             }, os.path.join(args.output_dir, 'best.pt'))
-            print(f"  -> Saved best model (val_loss={best_val_loss:.6f})")
+            print(f"  -> Saved best model (val_loss={best_val_loss:.4e})")
         else:
             patience_counter += 1
 
@@ -398,7 +417,7 @@ def main():
             print(f"Early stopping at epoch {epoch} (patience={args.patience})")
             break
 
-    print(f"\nTraining complete. Best val_loss: {best_val_loss:.6f}")
+    print(f"\nTraining complete. Best val_loss: {best_val_loss:.4e}")
     print(f"Checkpoints: {args.output_dir}/")
 
 
