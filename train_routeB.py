@@ -276,6 +276,8 @@ def main():
     parser.add_argument('--checkpoint_every', type=int, default=50)
     parser.add_argument('--resume', type=str, default=None)
     parser.add_argument('--patience', type=int, default=30)
+    parser.add_argument('--max_frames', type=int, default=0,
+                        help='Max frames per sample (0=all). Reduces epoch time.')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
 
@@ -286,7 +288,8 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # --- Dataset ---
-    dataset = WavefieldDataset(args.data_dir, rollout_len=1)
+    dataset = WavefieldDataset(args.data_dir, rollout_len=1,
+                               max_frames_per_file=args.max_frames)
     n_val = max(1, int(len(dataset) * args.val_split))
     n_train = len(dataset) - n_val
     train_ds, val_ds = random_split(dataset, [n_train, n_val])

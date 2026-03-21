@@ -56,11 +56,13 @@ class WavefieldDataset(Dataset):
     """
 
     def __init__(self, data_dir: str, rollout_len: int = 1,
-                 frame_stride: int = 1, normalize: bool = False):
+                 frame_stride: int = 1, normalize: bool = False,
+                 max_frames_per_file: int = 0):
         self.data_dir = Path(data_dir)
         self.rollout_len = rollout_len
         self.frame_stride = frame_stride
         self.normalize = normalize
+        self.max_frames_per_file = max_frames_per_file  # 0=use all frames
 
         self.h5_files: List[Path] = []
         self.file_info: List[Dict] = []  # n_frames, grid_shape per file
@@ -85,9 +87,16 @@ class WavefieldDataset(Dataset):
                         })
                         # Build index: each valid (file, frame) pair
                         max_start = n_frames - self.rollout_len
+                        file_frames = []
                         for t in range(0, max(1, max_start), self.frame_stride):
                             if t + self.rollout_len < n_frames:
-                                self._index.append((fi, t))
+                                file_frames.append((fi, t))
+                        # Subsample if max_frames_per_file is set
+                        if self.max_frames_per_file > 0 and len(file_frames) > self.max_frames_per_file:
+                            import numpy as np
+                            step = len(file_frames) / self.max_frames_per_file
+                            file_frames = [file_frames[int(i * step)] for i in range(self.max_frames_per_file)]
+                        self._index.extend(file_frames)
                 except Exception as e:
                     print(f"WARNING: Skipping {h5_path}: {e}")
 
