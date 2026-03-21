@@ -265,7 +265,7 @@ def main():
     parser.add_argument('--data_dir', type=str, default='data/wavefield_gt')
     parser.add_argument('--output_dir', type=str, default='checkpoints_routeB')
     parser.add_argument('--epochs', type=int, default=200)
-    parser.add_argument('--batch_size', type=int, default=32)
+    parser.add_argument('--batch_size', type=int, default=4)  # B=4 for per-sample sequential loop
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--warmup_epochs', type=int, default=5)
     parser.add_argument('--grad_clip', type=float, default=1.0)

@@ -115,7 +115,7 @@ class GNNEncoder(nn.Module):
     """
 
     def __init__(self, hidden_dim: int = 96, n_mp_layers: int = 5,
-                 k_local: int = 8, c_min: float = 1400.0, c_max: float = 1700.0,
+                 k_local: int = 8, c_min: float = 1400.0, c_max: float = 2000.0,
                  use_residual: bool = True, antisymmetric: bool = True):
         super().__init__()
         self.hidden_dim = hidden_dim
@@ -257,7 +257,7 @@ class DPCGNNAcousticV4(nn.Module):
             n_mp_layers=model_cfg.get('n_mp_layers', 5),
             k_local=model_cfg.get('k_local', 8),
             c_min=model_cfg.get('c_min', 1400.0),
-            c_max=model_cfg.get('c_max', 1700.0),
+            c_max=model_cfg.get('c_max', 2000.0),
             use_residual=model_cfg.get('use_residual', True),
             antisymmetric=model_cfg.get('antisymmetric', True),
         )
@@ -306,6 +306,15 @@ class DPCGNNAcousticV4(nn.Module):
         """
         # 1. GNN encoder: CT → tissue properties (c and α only)
         c, alpha = self.encoder(ct)
+
+        # Diagnostic: detect constant-output collapse early
+        if self.training and c.std() < 1.0:
+            import warnings
+            warnings.warn(
+                f"ENCODER COLLAPSE: c_std={c.std().item():.4f} < 1.0 m/s. "
+                f"c_range=[{c.min().item():.1f}, {c.max().item():.1f}]. "
+                f"GNN is producing near-constant output!"
+            )
 
         # Ablation: zero out attenuation if configured
         if self.fix_alpha_zero:
@@ -381,7 +390,7 @@ class DPCGNNAcousticV4(nn.Module):
 if __name__ == '__main__':
     config = {
         'model': {'hidden_dim': 96, 'n_mp_layers': 5, 'k_local': 8,
-                  'c_min': 1400, 'c_max': 1700},
+                  'c_min': 1400, 'c_max': 2000},
         'physics': {'dx': 2.34e-4, 'dt': 2.0e-8, 'n_time_steps': 50,
                     'pml_width': 20, 'c0': 1540.0},
         'data': {'grid_resolution': 256},

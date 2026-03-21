@@ -175,6 +175,10 @@ def train_stage1(config, args):
             train_loss_sum += loss.item()
             n_batches += 1
 
+            # Detect constant-output collapse
+            if n_batches == 1 and c_pred.std().item() < 1.0:
+                print(f"  ⚠️ COLLAPSE: c_std={c_pred.std().item():.4f} m/s at epoch {epoch}!")
+
         train_loss = train_loss_sum / max(1, n_batches)
 
         # Validate
@@ -184,6 +188,7 @@ def train_stage1(config, args):
         val_alpha_mae_sum = 0.0
         n_val_batches = 0
 
+        val_c_std_sum = 0.0
         with torch.no_grad():
             for ct, c_gt, alpha_gt in val_loader:
                 ct, c_gt, alpha_gt = ct.to(device), c_gt.to(device), alpha_gt.to(device)
@@ -193,11 +198,13 @@ def train_stage1(config, args):
                 val_loss_sum += (loss_c + 0.1 * loss_alpha).item()
                 val_c_mae_sum += F.l1_loss(c_pred, c_gt).item()
                 val_alpha_mae_sum += F.l1_loss(alpha_pred, alpha_gt).item()
+                val_c_std_sum += c_pred.std().item()
                 n_val_batches += 1
 
         val_loss = val_loss_sum / max(1, n_val_batches)
         val_c_mae = val_c_mae_sum / max(1, n_val_batches)
         val_alpha_mae = val_alpha_mae_sum / max(1, n_val_batches)
+        val_c_std = val_c_std_sum / max(1, n_val_batches)
 
         elapsed = time.time() - t_start
         print(
@@ -205,6 +212,7 @@ def train_stage1(config, args):
             f"Loss: {train_loss:.4f} | "
             f"Val: {val_loss:.4f} | "
             f"c_MAE: {val_c_mae:.2f} m/s | "
+            f"c_std: {val_c_std:.1f} | "
             f"α_MAE: {val_alpha_mae:.3f} | "
             f"Time: {elapsed:.1f}s"
         )
