@@ -85,6 +85,8 @@ def add_synthetic_bone(c_map: np.ndarray, rho_map: np.ndarray,
     """
     if rng.random() > prob:
         return c_map, rho_map, alpha_map
+    if c_map.shape[0] < 60:  # guard for small slices
+        return c_map, rho_map, alpha_map
     c_map = c_map.copy()
     rho_map = rho_map.copy()
     alpha_map = alpha_map.copy()
@@ -92,13 +94,13 @@ def add_synthetic_bone(c_map: np.ndarray, rho_map: np.ndarray,
     for _ in range(n_bones):
         row = rng.integers(30, c_map.shape[0] - 30)
         width = rng.integers(3, 8)  # 3-8 pixels (~0.7-1.9 mm)
-        c_bone = rng.uniform(1800.0, 2200.0)
-        rho_bone = rng.uniform(1500.0, 1900.0)
-        alpha_bone = rng.uniform(3.0, 8.0)  # bone attenuation much higher
-        c_map[row:row+width, :] = c_bone
-        rho_map[row:row+width, :] = rho_bone
-        alpha_map[row:row+width, :] = alpha_bone
-    return np.clip(c_map, 1400.0, 2500.0), rho_map, alpha_map
+        bone_shape = c_map[row:row+width, :].shape
+        c_map[row:row+width, :] = rng.uniform(1800.0, 2200.0, size=bone_shape)
+        rho_map[row:row+width, :] = rng.uniform(1500.0, 1900.0, size=bone_shape)
+        alpha_map[row:row+width, :] = rng.uniform(3.0, 8.0, size=bone_shape)
+    return (np.clip(c_map, 1400.0, 2500.0),
+            np.clip(rho_map, 900.0, 2000.0),
+            np.clip(alpha_map, 0.1, 10.0))
 
 
 def rho_from_c(c):
